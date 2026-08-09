@@ -26,7 +26,7 @@ module BACommunity
 
     loader = SketchupExtension.new(EXTENSION_NAME, File.join('area_counter', 'main.rb'))
     loader.copyright   = 'Copyright 2026 B&A community, Apache License 2.0'
-    loader.creator     = 'B&A community'
+    loader.creator     = 'B&A community — maksarsanjeev, Royalb21'
     loader.version     = VERSION
     loader.description = 'Математические расчёты по модели: площади, объёмы, длины, спецификации.'
     Sketchup.register_extension(loader, true)

@@ -5,6 +5,9 @@
 
 Версия 0.2 · лицензия [Apache 2.0](LICENSE) · © 2026 B&A community
 
+Создатели: [maksarsanjeev](https://github.com/maksarsanjeev),
+[Royalb21](https://github.com/Royalb21) — см. [AUTHORS](AUTHORS).
+
 ## Панель
 
 | # | Кнопка | Состояние |

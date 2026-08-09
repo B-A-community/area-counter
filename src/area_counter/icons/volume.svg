@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+  <!-- Объём: сплошной изокуб, три грани разной светлоты -->
+  <g fill="none" stroke="#3C3C3C" stroke-width="1.3" stroke-linejoin="round">
+    <polygon points="3,7 12,12 12,22 3,17" fill="#EDEDED"/>
+    <polygon points="12,12 21,7 21,17 12,22" fill="#D8D8D8"/>
+    <polygon points="12,2 21,7 12,12 3,7" fill="#FAFAFA"/>
+  </g>
+</svg>

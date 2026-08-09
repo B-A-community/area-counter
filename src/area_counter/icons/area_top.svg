@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+  <!-- Площадь верхних граней: изокуб, верхняя грань подсвечена акцентом -->
+  <g fill="none" stroke="#3C3C3C" stroke-width="1.3" stroke-linejoin="round">
+    <polygon points="3,7 12,12 12,22 3,17" fill="#F2F2F2"/>
+    <polygon points="12,12 21,7 21,17 12,22" fill="#E4E4E4"/>
+    <polygon points="12,2 21,7 12,12 3,7" fill="#4A90D9" stroke="#2D6FB0"/>
+  </g>
+</svg>

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Area Counter — автоматизация математических расчётов внутри SketchUp.
+# area counter — автоматизация математических расчётов внутри SketchUp.
 # Точка входа: регистрирует расширение, реальный код грузится из area_counter/main.rb.
 
 require 'sketchup.rb'
@@ -21,7 +21,7 @@ require 'extensions.rb'
 module BACommunity
   module AreaCounter
 
-    EXTENSION_NAME = 'Area Counter'.freeze
+    EXTENSION_NAME = 'area counter'.freeze
     VERSION        = '0.2'.freeze
 
     loader = SketchupExtension.new(EXTENSION_NAME, File.join('area_counter', 'main.rb'))

@@ -19,8 +19,8 @@ require 'sketchup.rb'
 module BACommunity
   module AreaCounter
 
-    TOOLBAR_NAME = 'Area Counter'.freeze
-    MENU_NAME    = 'Area Counter'.freeze
+    TOOLBAR_NAME = 'area counter'.freeze
+    MENU_NAME    = 'area counter'.freeze
     ICONS_DIR    = File.join(File.dirname(__FILE__), 'icons').freeze
 
     # Кнопки панели слева направо.

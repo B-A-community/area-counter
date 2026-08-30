@@ -19,10 +19,9 @@ module BACommunity
 
     # Обход дерева от якоря и измерение площади.
     #
-    # Якорь — то, что выделено. Плагин не знает слов «этаж» и «корпус»:
-    # он спускается вглубь, пока встречает одни только группы, и считает
-    # площадь там, где начинается собственная геометрия. Итоги суммируются
-    # снизу вверх, сколько бы уровней ни оказалось.
+    # Якорь — то, что выделено. Этажи лежат на заданной глубине ПОД якорем,
+    # и каждый считается целиком, со всем своим содержимым на любой вложенности.
+    # Спускаться до самого низа нельзя: там уже не этажи, а витражи и панели.
     module Calc
 
       M2_PER_IN2 = 0.00064516   # 1 кв. дюйм в кв. метрах
@@ -30,14 +29,6 @@ module BACommunity
       GAP        = 50.0.mm      # разрыв, который считаем одной стеной (В5)
       MIN_LOOP   = 0.01 / M2_PER_IN2  # контуры мельче 0.01 м² — это мусор
 
-      # entity   — сама группа или компонент
-      # name     — имя для таблицы
-      # children — вложенные узлы, пусто у листа
-      # area     — кв. метры; у ветки это сумма детей
-      # status   — :ok или :problem
-      # reason   — почему :problem, человеческим языком
-      # bbox     — [мин, макс] в мировых координатах, для подсветки
-      # zmin     — низ, по нему сортируем этажи снизу вверх
       Node = Struct.new(:entity, :name, :children, :area, :status, :reason, :bbox, :zmin)
 
       def self.group_like?(entity)
@@ -48,10 +39,24 @@ module BACommunity
         entity.is_a?(Sketchup::Group) ? entity.entities : entity.definition.entities
       end
 
+      # Видимость слоя спрашиваем один раз на слой: на моделях с сотнями тысяч
+      # рёбер этот вопрос сам по себе съедал заметную часть времени.
+      def self.reset_cache
+        @layer_cache = {}
+      end
+
+      def self.layer_visible?(layer)
+        return true if layer.nil?
+        @layer_cache ||= {}
+        key = layer.entityID
+        cached = @layer_cache[key]
+        return cached unless cached.nil?
+        @layer_cache[key] = layer.visible?
+      end
+
       def self.shown?(entity)
         return false if entity.hidden?
-        layer = entity.layer
-        layer.nil? || layer.visible?
+        layer_visible?(entity.layer)
       end
 
       def self.name_of(entity)
@@ -66,27 +71,29 @@ module BACommunity
         ''
       end
 
+      def self.child_groups(entity)
+        inner_entities(entity).select { |e| group_like?(e) && shown?(e) }
+      end
+
       # --- обход -------------------------------------------------------------
 
-      def self.build(entity, parent_tr, method_key, offset)
-        tr    = parent_tr * entity.transformation
-        inner = inner_entities(entity)
+      # depth — сколько уровней вниз от якоря лежат этажи.
+      # 0 — выделены сами этажи, 1 — выделен корпус, 2 — квартал.
+      def self.build(entity, parent_tr, depth, method_key, offset)
+        tr = parent_tr * entity.transformation
 
-        own_faces = inner.grep(Sketchup::Face)
-        kids      = inner.select { |e| group_like?(e) && shown?(e) }
+        return leaf(entity, tr, method_key, offset) if depth <= 0
 
-        # Группа с собственными гранями — это лист, даже если внутри есть
-        # ещё группы: «группа элементов = этаж».
-        if kids.empty? || !own_faces.empty?
-          leaf(entity, tr, method_key, offset)
-        else
-          children = kids.map { |kid| build(kid, tr, method_key, offset) }
-          branch(entity, children)
-        end
+        kids = child_groups(entity)
+        # Глубже, чем есть, не лезем: якорь просто оказывается этажом сам.
+        return leaf(entity, tr, method_key, offset) if kids.empty?
+
+        children = kids.map { |kid| build(kid, tr, depth - 1, method_key, offset) }
+        branch(entity, children)
       end
 
       def self.branch(entity, children)
-        area = children.inject(0.0) { |sum, node| sum + node.area.to_f }
+        area  = children.inject(0.0) { |sum, node| sum + node.area.to_f }
         boxes = children.map(&:bbox).compact
         bbox  = boxes.empty? ? nil : union_bbox(boxes)
         zmins = children.map(&:zmin).compact
@@ -94,78 +101,84 @@ module BACommunity
       end
 
       def self.leaf(entity, tr, method_key, offset)
-        faces = collect_faces(inner_entities(entity), tr)
-        bbox  = bbox_of(faces)
+        @counter = (@counter || 0) + 1
+        Sketchup.status_text = "area counter: обработано этажей #{@counter}" if (@counter % 25).zero?
 
+        faces = collect_faces(inner_entities(entity), tr)
         if faces.empty?
           return Node.new(entity, name_of(entity), [], 0.0, :problem,
                           'внутри нет граней', nil, nil)
         end
 
+        box, horiz = scan(faces)
+        bbox = [box.min, box.max]
+
         area, status, reason =
           if method_key.to_s == 'section'
-            section_area(faces, offset)
+            section_area(faces, box.min.z + offset)
           else
-            top_area(faces)
+            top_area(horiz)
           end
 
-        Node.new(entity, name_of(entity), [], area, status, reason, bbox, bbox[0].z)
+        Node.new(entity, name_of(entity), [], area, status, reason, bbox, box.min.z)
       end
 
       # Собирает грани вместе с накопленной трансформацией на всю глубину.
-      # Именно этого не хватало прежней версии: она смотрела только первый
-      # уровень, поэтому этаж с вложенной группой давал ноль.
+      # Класс сверяем напрямую: на рёбрах, которых в модели больше всего,
+      # это выходит заметно дешевле цепочки is_a?.
       def self.collect_faces(entities, tr, acc = [])
         entities.each do |entity|
-          next unless entity.respond_to?(:hidden?) && shown?(entity)
-          case entity
-          when Sketchup::Face
-            acc << [entity, tr]
-          when Sketchup::Group
-            collect_faces(entity.entities, tr * entity.transformation, acc)
-          when Sketchup::ComponentInstance
-            collect_faces(entity.definition.entities, tr * entity.transformation, acc)
+          klass = entity.class
+          if klass == Sketchup::Face
+            acc << [entity, tr] if shown?(entity)
+          elsif klass == Sketchup::Group
+            collect_faces(entity.entities, tr * entity.transformation, acc) if shown?(entity)
+          elsif klass == Sketchup::ComponentInstance
+            collect_faces(entity.definition.entities, tr * entity.transformation, acc) if shown?(entity)
           end
         end
         acc
       end
 
-      # --- габариты ----------------------------------------------------------
-
-      def self.bbox_of(faces)
-        box = Geom::BoundingBox.new
+      # Один проход по граням: сразу и габарит, и горизонтальные грани.
+      # Раньше вершины пересчитывались дважды — на больших этажах это вдвое дороже.
+      def self.scan(faces)
+        box   = Geom::BoundingBox.new
+        horiz = []
         faces.each do |(face, tr)|
-          face.outer_loop.vertices.each { |v| box.add(v.position.transform(tr)) }
+          low  = nil
+          high = nil
+          face.outer_loop.vertices.each do |vertex|
+            point = vertex.position.transform(tr)
+            box.add(point)
+            z = point.z
+            low  = z if low.nil?  || z < low
+            high = z if high.nil? || z > high
+          end
+          next if low.nil?
+          horiz << [face, tr, (low + high) / 2.0] if (high - low) <= Z_TOL
         end
-        [box.min, box.max]
+        [box, horiz]
       end
 
       def self.union_bbox(boxes)
         box = Geom::BoundingBox.new
-        boxes.each { |(mn, mx)| box.add(mn); box.add(mx) }
+        boxes.each { |(low, high)| box.add(low); box.add(high) }
         [box.min, box.max]
       end
 
       # --- способ 1: верхние горизонтальные грани ----------------------------
       #
-      # Работаем в мировых координатах: грань «горизонтальна», если все её
-      # вершины на одной отметке. Повёрнутые оси группы больше не мешают.
-      # И берём ВСЕ грани верхней отметки, а не одну, — иначе уступ на верху
-      # съедал бы часть площади.
-      def self.top_area(faces)
-        level = []
-        faces.each do |(face, tr)|
-          zs = face.outer_loop.vertices.map { |v| v.position.transform(tr).z }
-          next if zs.max - zs.min > Z_TOL
-          level << [face, tr, (zs.max + zs.min) / 2.0]
-        end
+      # Работаем в мировых координатах, поэтому повёрнутые оси группы не мешают,
+      # и берём ВСЕ грани верхней отметки, а не одну: уступ наверху больше
+      # не съедает часть площади.
+      def self.top_area(horiz)
+        return [0.0, :problem, 'нет горизонтальных граней'] if horiz.empty?
 
-        return [0.0, :problem, 'нет горизонтальных граней'] if level.empty?
-
-        top   = level.map { |item| item[2] }.max
-        onTop = level.select { |item| (top - item[2]).abs <= Z_TOL }
-        in2   = onTop.inject(0.0) { |sum, item| sum + item[0].area(item[1]) }
-        area  = in2 * M2_PER_IN2
+        top    = horiz.map { |item| item[2] }.max
+        on_top = horiz.select { |item| (top - item[2]).abs <= Z_TOL }
+        in2    = on_top.inject(0.0) { |sum, item| sum + item[0].area(item[1]) }
+        area   = in2 * M2_PER_IN2
 
         return [0.0, :problem, 'верхняя грань нулевой площади'] if area <= 0.0
         [area, :ok, nil]
@@ -173,20 +186,11 @@ module BACommunity
 
       # --- способ 2: горизонтальное сечение на отметке -----------------------
       #
-      # Модель не трогаем вообще: сечение считается аналитически по граням.
+      # Модель не трогаем: сечение считается аналитически по граням.
       # Отметка отмеряется от низа группы-этажа (В3), внутренние дворы
       # вычитаются вложенностью контуров (В4), разрывы до 50 мм смыкаются (В5).
-      def self.section_area(faces, offset)
-        zmin = nil
-        faces.each do |(face, tr)|
-          face.outer_loop.vertices.each do |v|
-            z = v.position.transform(tr).z
-            zmin = z if zmin.nil? || z < zmin
-          end
-        end
-        return [0.0, :problem, 'внутри нет граней'] if zmin.nil?
-
-        cut  = safe_cut_level(faces, zmin + offset)
+      def self.section_area(faces, level)
+        cut  = safe_cut_level(faces, level)
         segs = []
         faces.each { |(face, tr)| segs.concat(plane_segments(face, tr, cut)) }
 
@@ -209,8 +213,8 @@ module BACommunity
         5.times do
           touching = false
           faces.each do |(face, tr)|
-            face.outer_loop.vertices.each do |v|
-              if (v.position.transform(tr).z - cut).abs < eps
+            face.outer_loop.vertices.each do |vertex|
+              if (vertex.position.transform(tr).z - cut).abs < eps
                 touching = true
                 break
               end
@@ -226,9 +230,10 @@ module BACommunity
       # Пересечение одной грани с горизонтальной плоскостью: набор отрезков.
       def self.plane_segments(face, tr, cut)
         outer = face.outer_loop.vertices.map { |v| v.position.transform(tr) }
+        return [] if outer.length < 3
+
         rings = face.loops.map { |lp| lp.vertices.map { |v| v.position.transform(tr) } }
         all   = rings.inject([]) { |acc, ring| acc + ring }
-        return [] if all.length < 3 || outer.length < 3
 
         zs = all.map(&:z)
         return [] if zs.max - zs.min <= Z_TOL          # горизонтальная грань
@@ -266,7 +271,7 @@ module BACommunity
 
         points.sort_by! { |p| p.x * dir.x + p.y * dir.y }
 
-        segs = []
+        segs  = []
         index = 0
         while index + 1 < points.length
           a = points[index]
@@ -290,14 +295,13 @@ module BACommunity
 
       def self.dedupe(points, tol)
         kept = []
-        points.each do |p|
-          kept << p unless kept.any? { |q| q.distance(p) <= tol }
+        points.each do |point|
+          kept << point unless kept.any? { |other| other.distance(point) <= tol }
         end
         kept
       end
 
       # Сшивает отрезки в замкнутые контуры, прощая разрывы до gap.
-      # Возвращает [контуры, был_ли_незамкнутый_кусок].
       def self.chain_loops(segs, gap)
         left     = segs.dup
         loops    = []
@@ -311,8 +315,8 @@ module BACommunity
             tail    = poly.last
             closing = poly.first.distance(tail)
 
-            best_d = nil
-            best_i = nil
+            best_d    = nil
+            best_i    = nil
             best_flip = false
             left.each_with_index do |(p, q), i|
               d1 = tail.distance(p)
@@ -325,9 +329,8 @@ module BACommunity
               end
             end
 
-            if poly.length >= 3 && closing <= 1.0e-4
-              break
-            end
+            break if poly.length >= 3 && closing <= 1.0e-4
+
             if best_i.nil? || best_d > gap
               dangling = true if closing > gap || poly.length < 3
               break
@@ -387,15 +390,29 @@ module BACommunity
 
       # --- точка входа -------------------------------------------------------
 
-      def self.run(method_key, offset_mm)
-        model     = Sketchup.active_model
-        anchors   = model.selection.to_a.select { |e| group_like?(e) }
+      def self.run(method_key, offset_mm, depth)
+        model   = Sketchup.active_model
+        anchors = model.selection.to_a.select { |e| group_like?(e) }
         return nil if anchors.empty?
 
-        offset  = offset_mm.to_f.mm
-        roots   = anchors.map { |a| build(a, Geom::Transformation.new, method_key, offset) }
+        reset_cache
+        @counter = 0
+        Sketchup.status_text = 'area counter: считаю…'
+
+        offset = offset_mm.to_f.mm
+        roots  = anchors.map { |a| build(a, Geom::Transformation.new, depth.to_i, method_key, offset) }
         sort_tree(roots)
+
+        Sketchup.status_text = ''
         roots
+      end
+
+      # Сколько уровней групп лежит под якорем — подсказка для выбора глубины.
+      def self.available_depth(entity, limit = 4)
+        return 0 if limit <= 0
+        kids = child_groups(entity)
+        return 0 if kids.empty?
+        1 + kids.map { |kid| available_depth(kid, limit - 1) }.max
       end
 
       def self.sort_tree(nodes)

@@ -42,15 +42,21 @@
     padding:14px 0; gap:26px;
     border-right:1px solid rgba(255,255,255,.06);
   }
+  /* Подпись поворачиваем самим transform, а не writing-mode:
+     так глифы гарантированно стоят как надо в любом движке. */
   .rail button{
-    writing-mode:vertical-rl; transform:rotate(180deg);
-    background:none; border:0; padding:8px 3px; cursor:pointer;
+    position:relative; width:34px; height:96px; flex:0 0 96px;
+    background:none; border:0; padding:0; cursor:pointer; border-radius:4px;
+  }
+  .rail button span{
+    position:absolute; left:50%; top:50%;
+    transform:translate(-50%,-50%) rotate(-90deg);
+    white-space:nowrap;
     font:300 10.5px/1 'Segoe UI',sans-serif; letter-spacing:.18em;
     text-transform:uppercase; color:var(--dim);
-    border-radius:4px;
   }
-  .rail button:hover{color:var(--text);}
-  .rail button.on{color:var(--mint);}
+  .rail button:hover span{color:var(--text);}
+  .rail button.on span{color:var(--mint);}
   .rail button:focus-visible{outline:1px solid var(--mint); outline-offset:2px;}
 
   /* --- список ------------------------------------------------------------ */
@@ -183,9 +189,9 @@
 <div class="app">
 
   <nav class="rail">
-    <button type="button" data-tab="list" class="on">Список</button>
-    <button type="button" data-tab="bad">Проблемы</button>
-    <button type="button" data-tab="setup">Настройки</button>
+    <button type="button" data-tab="list" class="on"><span>Список</span></button>
+    <button type="button" data-tab="bad"><span>Проблемы</span></button>
+    <button type="button" data-tab="setup"><span>Настройки</span></button>
   </nav>
 
   <section class="list">
@@ -223,6 +229,15 @@
       </div>
     </div>
 
+    <div class="card">
+      <h2>Что выделено</h2>
+      <div class="seg">
+        <button type="button" id="d0">Этажи</button>
+        <button type="button" id="d1" class="on">Корпус</button>
+        <button type="button" id="d2">Квартал</button>
+      </div>
+    </div>
+
     <div class="card" id="setupCard">
       <h2>Способ</h2>
       <div class="seg">
@@ -248,7 +263,7 @@
 <textarea id="clip"></textarea>
 
 <script>
-  var STATE = { rows: [], tsv: '', method: 'top', offset: 1500 };
+  var STATE = { rows: [], tsv: '', method: 'top', offset: 1500, depth: 1, hidden: 0 };
   var TAB = 'list';
 
   function esc(s){
@@ -266,8 +281,10 @@
 
     if (TAB === 'setup'){
       host.innerHTML = '<div class="empty">' +
-        'Способ и отметка задаются карточкой справа.<br><br>' +
-        '<b style="font-weight:400">Верхняя грань</b> — быстрый счёт по самой верхней горизонтальной грани.<br>' +
+        '<b style="font-weight:400">Что выделено</b> — на сколько уровней вниз от выделенного лежат этажи. ' +
+        'Выделили сами этажи — «Этажи», выделили корпус — «Корпус», квартал — «Квартал». ' +
+        'Каждый этаж считается целиком, со всем, что внутри него вложено.<br><br>' +
+        '<b style="font-weight:400">Верхняя грань</b> — быстрый счёт по всем горизонтальным граням верхней отметки.<br>' +
         '<b style="font-weight:400">Сечение</b> — горизонтальный разрез на отметке от низа каждого этажа. ' +
         'Внутренние дворы вычитаются, разрывы до 50 мм смыкаются.</div>';
       return;
@@ -297,6 +314,10 @@
                 '<span class="row-val">' + esc(r.area) + '<small>м²</small></span>' +
               '</button>';
     });
+    if (TAB === 'list' && STATE.hidden){
+      html += '<div class="empty">Показаны первые ' + rows.length + ' строк из ' +
+              (rows.length + STATE.hidden) + '.<br>В буфер копируется вся таблица целиком.</div>';
+    }
     host.innerHTML = html;
 
     Array.prototype.forEach.call(host.querySelectorAll('.row'), function(el){
@@ -317,6 +338,9 @@
     document.getElementById('offset').value = data.offset;
     document.getElementById('mTop').className = data.method === 'section' ? '' : 'on';
     document.getElementById('mSection').className = data.method === 'section' ? 'on' : '';
+    [0, 1, 2].forEach(function(d){
+      document.getElementById('d' + d).className = (data.depth === d) ? 'on' : '';
+    });
     document.getElementById('hint').textContent =
       data.rows.length ? (data.method === 'section' ? 'сечение на ' + data.offset + ' мм' : 'по верхней грани')
                        : 'выделите группу и нажмите «Посчитать»';
@@ -343,7 +367,8 @@
 
   function run(){
     var mm = parseFloat(document.getElementById('offset').value) || 1500;
-    sketchup.recalc(STATE.method, mm);
+    document.getElementById('note').textContent = 'Считаю…';
+    sketchup.recalc(STATE.method, mm, STATE.depth);
   }
 
   document.getElementById('btnRun').addEventListener('click', run);
@@ -358,6 +383,16 @@
   });
   document.getElementById('offset').addEventListener('change', function(){
     if (STATE.method === 'section') run();
+  });
+
+  [0, 1, 2].forEach(function(d){
+    document.getElementById('d' + d).addEventListener('click', function(){
+      STATE.depth = d;
+      [0, 1, 2].forEach(function(k){
+        document.getElementById('d' + k).className = (k === d) ? 'on' : '';
+      });
+      run();
+    });
   });
 
   Array.prototype.forEach.call(document.querySelectorAll('.rail button'), function(btn){

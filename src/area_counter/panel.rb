@@ -24,6 +24,10 @@ module BACommunity
 
       HTML_FILE = File.join(File.dirname(__FILE__), 'html', 'panel.html').freeze
 
+      # Строк в списке. Таблица в буфер уходит целиком, а вот рисовать
+      # тысячи строк в окне бессмысленно и медленно.
+      MAX_ROWS = 400
+
       @dialog = nil
       @roots  = nil
       @report = nil
@@ -31,6 +35,7 @@ module BACommunity
       @note   = nil
       @method = 'top'
       @offset = 1500
+      @depth  = 1
 
       # Метод называется show, а не open: open — приватный метод Kernel,
       # перекрывать его у модуля не стоит.
@@ -59,9 +64,10 @@ module BACommunity
 
       def self.attach_callbacks(dialog)
         dialog.add_action_callback('ready') { |_ctx| push }
-        dialog.add_action_callback('recalc') do |_ctx, method_key, offset_mm|
+        dialog.add_action_callback('recalc') do |_ctx, method_key, offset_mm, depth|
           @method = method_key.to_s
           @offset = offset_mm.to_f
+          @depth  = depth.to_i
           recalc
         end
         dialog.add_action_callback('highlight') { |_ctx| do_highlight }
@@ -80,7 +86,8 @@ module BACommunity
       # --- расчёт ------------------------------------------------------------
 
       def self.recalc
-        @roots = Calc.run(@method, @offset)
+        started = Time.now
+        @roots  = Calc.run(@method, @offset, @depth)
 
         if @roots.nil?
           @report = nil
@@ -92,7 +99,9 @@ module BACommunity
 
         @report = Report.build(@roots)
         @leaves = @report[:rows].map { |row| row[:node] }
-        say(nil)
+
+        spent = Time.now - started
+        say(format('Посчитано %d за %.1f с.', @report[:floors], spent))
         push
       end
 
@@ -120,18 +129,20 @@ module BACommunity
 
       def self.payload
         base = {
-          'method'  => @method,
-          'offset'  => @offset.to_i,
-          'note'    => @note,
-          'columns' => [],
-          'rows'    => [],
-          'totals'  => { 'area' => '0,00', 'floors' => 0, 'problems' => 0 },
-          'tsv'     => ''
+          'method'    => @method,
+          'offset'    => @offset.to_i,
+          'depth'     => @depth,
+          'note'      => @note,
+          'columns'   => [],
+          'rows'      => [],
+          'hidden'    => 0,
+          'totals'    => { 'area' => '0,00', 'floors' => 0, 'problems' => 0 },
+          'tsv'       => ''
         }
         return base if @report.nil?
 
         rows = []
-        @report[:rows].each_with_index do |row, index|
+        @report[:rows].first(MAX_ROWS).each_with_index do |row, index|
           rows << {
             'index'  => index,
             'cells'  => @report[:cells][index],
@@ -145,6 +156,7 @@ module BACommunity
 
         base['columns'] = @report[:columns]
         base['rows']    = rows
+        base['hidden']  = [@report[:rows].length - rows.length, 0].max
         base['totals']  = {
           'area'     => Report.number(@report[:total_area]),
           'floors'   => @report[:floors],

@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>area counter</title>
+<style>
+  /* Палитра снята с референса: холодный сине-серый градиент,
+     полупрозрачные карточки со светлой рамкой, мятная черта у чисел. */
+  :root{
+    --bg-1:#6E767F;
+    --bg-2:#555D66;
+    --bg-3:#3C434B;
+    --rail:rgba(18,22,26,.38);
+    --list:rgba(22,26,30,.22);
+    --card:rgba(255,255,255,.10);
+    --card-line:rgba(255,255,255,.15);
+    --hair:rgba(255,255,255,.09);
+    --text:#EDF0F2;
+    --muted:#A6AEB6;
+    --dim:#828C95;
+    --mint:#ADE3C6;
+    --amber:#E2A860;
+  }
+
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0; overflow:hidden;
+    font-family:'Segoe UI',system-ui,-apple-system,sans-serif;
+    font-weight:300; color:var(--text);
+    background:
+      radial-gradient(120% 90% at 12% 0%, rgba(255,255,255,.14) 0%, rgba(255,255,255,0) 55%),
+      linear-gradient(135deg, var(--bg-1) 0%, var(--bg-2) 45%, var(--bg-3) 100%);
+  }
+
+  .app{display:flex; height:100vh;}
+
+  /* --- боковая рейка с вертикальными подписями --------------------------- */
+  .rail{
+    width:46px; flex:0 0 46px; background:var(--rail);
+    display:flex; flex-direction:column; align-items:center;
+    padding:14px 0; gap:26px;
+    border-right:1px solid rgba(255,255,255,.06);
+  }
+  .rail button{
+    writing-mode:vertical-rl; transform:rotate(180deg);
+    background:none; border:0; padding:8px 3px; cursor:pointer;
+    font:300 10.5px/1 'Segoe UI',sans-serif; letter-spacing:.18em;
+    text-transform:uppercase; color:var(--dim);
+    border-radius:4px;
+  }
+  .rail button:hover{color:var(--text);}
+  .rail button.on{color:var(--mint);}
+  .rail button:focus-visible{outline:1px solid var(--mint); outline-offset:2px;}
+
+  /* --- список ------------------------------------------------------------ */
+  .list{
+    flex:1 1 auto; min-width:0; background:var(--list);
+    display:flex; flex-direction:column;
+    border-right:1px solid rgba(255,255,255,.06);
+  }
+  .list-head{
+    display:flex; align-items:baseline; justify-content:space-between;
+    padding:20px 26px 14px;
+  }
+  .list-head h1{margin:0; font-size:19px; font-weight:300; letter-spacing:.01em;}
+  .list-head .hint{font-size:11px; color:var(--dim); letter-spacing:.06em;}
+
+  .scroll{flex:1 1 auto; overflow-y:auto; padding:0 26px 18px;}
+  .scroll::-webkit-scrollbar{width:8px;}
+  .scroll::-webkit-scrollbar-thumb{background:rgba(255,255,255,.14); border-radius:4px;}
+
+  .group-label{
+    padding:16px 0 8px; font-size:12px; color:var(--muted);
+    letter-spacing:.05em;
+  }
+
+  .row{
+    display:flex; align-items:center; gap:14px;
+    padding:13px 0; border-top:1px solid var(--hair);
+    cursor:pointer; background:none; border-left:0; border-right:0; border-bottom:0;
+    width:100%; text-align:left; color:inherit; font:inherit;
+  }
+  .row:hover .row-name{color:#fff;}
+  .row:focus-visible{outline:1px solid var(--mint); outline-offset:2px;}
+  .row-main{display:block; flex:1 1 auto; min-width:0;}
+  .row-name{
+    display:block;
+    font-size:11px; letter-spacing:.13em; text-transform:uppercase;
+    color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .row-sub{
+    display:block; margin-top:5px; font-size:11.5px; color:var(--dim);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .row.bad .row-sub{color:var(--amber);}
+  .row-val{
+    font-size:15px; color:var(--text); white-space:nowrap;
+    font-variant-numeric:tabular-nums;
+  }
+  .row-val small{font-size:10.5px; color:var(--dim); margin-left:4px;}
+  .row.bad .row-val{color:var(--amber);}
+
+  .empty{padding:40px 0; color:var(--dim); font-size:13px; line-height:1.7;}
+
+  /* --- карточки справа --------------------------------------------------- */
+  .side{
+    width:264px; flex:0 0 264px; padding:20px 20px 0;
+    display:flex; flex-direction:column; gap:14px; overflow-y:auto;
+  }
+  .brand{
+    text-align:right; font-size:10px; letter-spacing:.28em;
+    color:rgba(255,255,255,.35); text-transform:uppercase; padding-bottom:2px;
+  }
+  .card{
+    background:var(--card); border:1px solid var(--card-line);
+    border-radius:10px; padding:15px 16px 16px;
+    backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
+  }
+  .card h2{
+    margin:0 0 12px; font-size:11.5px; font-weight:300;
+    color:var(--muted); letter-spacing:.06em;
+  }
+  .stat{display:flex; align-items:center; gap:10px;}
+  .bar{width:2px; height:28px; background:var(--mint); border-radius:1px; flex:0 0 2px;}
+  .bar.amber{background:var(--amber);}
+  .val{font-size:27px; font-weight:200; line-height:1; font-variant-numeric:tabular-nums;}
+  .val small{font-size:12px; color:var(--muted); margin-left:5px; font-weight:300;}
+  .pair{display:flex; gap:18px;}
+  .pair > div{flex:1 1 0; min-width:0;}
+  .pair h3{
+    margin:0 0 8px; font-size:10.5px; font-weight:300;
+    color:var(--dim); letter-spacing:.08em;
+  }
+  .pair .val{font-size:21px;}
+
+  .field{display:flex; align-items:center; gap:10px; margin-top:10px;}
+  .field label{font-size:11px; color:var(--muted); flex:1 1 auto;}
+  .field input{
+    width:74px; background:rgba(0,0,0,.22); color:var(--text);
+    border:1px solid var(--card-line); border-radius:5px;
+    padding:6px 8px; font:300 13px 'Segoe UI',sans-serif; text-align:right;
+    font-variant-numeric:tabular-nums;
+  }
+  .field input:focus{outline:none; border-color:var(--mint);}
+
+  .seg{display:flex; gap:6px; margin-top:2px;}
+  .seg button{
+    flex:1 1 0; padding:8px 6px; cursor:pointer;
+    background:rgba(255,255,255,.05); color:var(--muted);
+    border:1px solid var(--card-line); border-radius:6px;
+    font:300 11px 'Segoe UI',sans-serif; letter-spacing:.03em;
+  }
+  .seg button.on{background:rgba(173,227,198,.16); border-color:var(--mint); color:#fff;}
+  .seg button:focus-visible{outline:1px solid var(--mint); outline-offset:2px;}
+
+  /* --- нижняя панель ----------------------------------------------------- */
+  .foot{
+    position:absolute; left:46px; right:0; bottom:0;
+    display:flex; align-items:center; gap:10px;
+    padding:12px 20px; background:rgba(18,22,26,.30);
+    border-top:1px solid rgba(255,255,255,.08);
+    backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
+  }
+  .note{flex:1 1 auto; font-size:11.5px; color:var(--muted); min-width:0;}
+  .btn{
+    padding:8px 15px; cursor:pointer; white-space:nowrap;
+    background:rgba(255,255,255,.06); color:var(--text);
+    border:1px solid var(--card-line); border-radius:6px;
+    font:300 12px 'Segoe UI',sans-serif; letter-spacing:.02em;
+  }
+  .btn:hover{background:rgba(255,255,255,.13);}
+  .btn:focus-visible{outline:1px solid var(--mint); outline-offset:2px;}
+  .btn.primary{background:rgba(173,227,198,.18); border-color:var(--mint);}
+  .btn.primary:hover{background:rgba(173,227,198,.28);}
+
+  .list, .side{padding-bottom:56px;}
+  #clip{position:absolute; left:-9999px; top:0; width:10px; height:10px; opacity:0;}
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <nav class="rail">
+    <button type="button" data-tab="list" class="on">Список</button>
+    <button type="button" data-tab="bad">Проблемы</button>
+    <button type="button" data-tab="setup">Настройки</button>
+  </nav>
+
+  <section class="list">
+    <div class="list-head">
+      <h1 id="title">Этажи</h1>
+      <span class="hint" id="hint">выделите группу и нажмите «Посчитать»</span>
+    </div>
+    <div class="scroll" id="scroll">
+      <div class="empty">Ничего ещё не посчитано.<br>Выделите корпус или этажи в модели и нажмите «Посчитать».</div>
+    </div>
+  </section>
+
+  <aside class="side">
+    <div class="brand">area counter</div>
+
+    <div class="card">
+      <h2>Площадь</h2>
+      <div class="stat">
+        <span class="bar"></span>
+        <span class="val" id="totalArea">0,00<small>м²</small></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Посчитано</h2>
+      <div class="pair">
+        <div>
+          <h3>Этажей</h3>
+          <div class="stat"><span class="bar"></span><span class="val" id="floors">0</span></div>
+        </div>
+        <div>
+          <h3>Проблем</h3>
+          <div class="stat"><span class="bar amber" id="probBar"></span><span class="val" id="problems">0</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" id="setupCard">
+      <h2>Способ</h2>
+      <div class="seg">
+        <button type="button" id="mTop" class="on">Верхняя грань</button>
+        <button type="button" id="mSection">Сечение</button>
+      </div>
+      <div class="field">
+        <label for="offset">Отметка, мм</label>
+        <input type="number" id="offset" value="1500" min="0" step="50">
+      </div>
+    </div>
+  </aside>
+
+</div>
+
+<div class="foot">
+  <span class="note" id="note">Готов к работе.</span>
+  <button type="button" class="btn" id="btnHi">Подсветить</button>
+  <button type="button" class="btn" id="btnCopy">Копировать таблицу</button>
+  <button type="button" class="btn primary" id="btnRun">Посчитать</button>
+</div>
+
+<textarea id="clip"></textarea>
+
+<script>
+  var STATE = { rows: [], tsv: '', method: 'top', offset: 1500 };
+  var TAB = 'list';
+
+  function esc(s){
+    return String(s == null ? '' : s)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function render(){
+    var host = document.getElementById('scroll');
+    var rows = STATE.rows || [];
+    if (TAB === 'bad') rows = rows.filter(function(r){ return r.status === 'problem'; });
+
+    document.getElementById('title').textContent =
+      TAB === 'bad' ? 'Проблемные' : (TAB === 'setup' ? 'Настройки' : 'Этажи');
+
+    if (TAB === 'setup'){
+      host.innerHTML = '<div class="empty">' +
+        'Способ и отметка задаются карточкой справа.<br><br>' +
+        '<b style="font-weight:400">Верхняя грань</b> — быстрый счёт по самой верхней горизонтальной грани.<br>' +
+        '<b style="font-weight:400">Сечение</b> — горизонтальный разрез на отметке от низа каждого этажа. ' +
+        'Внутренние дворы вычитаются, разрывы до 50 мм смыкаются.</div>';
+      return;
+    }
+
+    if (!rows.length){
+      host.innerHTML = '<div class="empty">' +
+        (TAB === 'bad' ? 'Проблемных этажей нет.' :
+         'Ничего ещё не посчитано.<br>Выделите корпус или этажи в модели и нажмите «Посчитать».') +
+        '</div>';
+      return;
+    }
+
+    var html = '';
+    var group = null;
+    rows.forEach(function(r){
+      if (r.parent !== group){
+        group = r.parent;
+        if (group) html += '<div class="group-label">' + esc(group) + '</div>';
+      }
+      html += '<button type="button" class="row' + (r.status === 'problem' ? ' bad' : '') +
+              '" data-i="' + r.index + '">' +
+                '<span class="row-main">' +
+                  '<span class="row-name">' + esc(r.name) + '</span>' +
+                  '<span class="row-sub">' + esc(r.reason || 'посчитано') + '</span>' +
+                '</span>' +
+                '<span class="row-val">' + esc(r.area) + '<small>м²</small></span>' +
+              '</button>';
+    });
+    host.innerHTML = html;
+
+    Array.prototype.forEach.call(host.querySelectorAll('.row'), function(el){
+      el.addEventListener('click', function(){
+        sketchup.zoom(parseInt(el.getAttribute('data-i'), 10));
+      });
+    });
+  }
+
+  window.acRender = function(data){
+    STATE = data || STATE;
+    document.getElementById('totalArea').innerHTML =
+      esc(data.totals.area) + '<small>м²</small>';
+    document.getElementById('floors').textContent = data.totals.floors;
+    document.getElementById('problems').textContent = data.totals.problems;
+    document.getElementById('probBar').className = 'bar' + (data.totals.problems ? ' amber' : '');
+    document.getElementById('note').textContent = data.note || 'Готов к работе.';
+    document.getElementById('offset').value = data.offset;
+    document.getElementById('mTop').className = data.method === 'section' ? '' : 'on';
+    document.getElementById('mSection').className = data.method === 'section' ? 'on' : '';
+    document.getElementById('hint').textContent =
+      data.rows.length ? (data.method === 'section' ? 'сечение на ' + data.offset + ' мм' : 'по верхней грани')
+                       : 'выделите группу и нажмите «Посчитать»';
+    render();
+  };
+
+  window.acCopy = function(){
+    var ta = document.getElementById('clip');
+    ta.value = STATE.tsv || '';
+    if (!ta.value){ sketchup.copied(false); return; }
+    ta.select();
+    var ok = false;
+    try { ok = document.execCommand('copy'); } catch(e){ ok = false; }
+    if (ok){ sketchup.copied(true); return; }
+    if (navigator.clipboard){
+      navigator.clipboard.writeText(ta.value).then(
+        function(){ sketchup.copied(true); },
+        function(){ sketchup.copied(false); }
+      );
+      return;
+    }
+    sketchup.copied(false);
+  };
+
+  function run(){
+    var mm = parseFloat(document.getElementById('offset').value) || 1500;
+    sketchup.recalc(STATE.method, mm);
+  }
+
+  document.getElementById('btnRun').addEventListener('click', run);
+  document.getElementById('btnHi').addEventListener('click', function(){ sketchup.highlight(); });
+  document.getElementById('btnCopy').addEventListener('click', window.acCopy);
+
+  document.getElementById('mTop').addEventListener('click', function(){
+    STATE.method = 'top'; run();
+  });
+  document.getElementById('mSection').addEventListener('click', function(){
+    STATE.method = 'section'; run();
+  });
+  document.getElementById('offset').addEventListener('change', function(){
+    if (STATE.method === 'section') run();
+  });
+
+  Array.prototype.forEach.call(document.querySelectorAll('.rail button'), function(btn){
+    btn.addEventListener('click', function(){
+      Array.prototype.forEach.call(document.querySelectorAll('.rail button'), function(b){
+        b.className = '';
+      });
+      btn.className = 'on';
+      TAB = btn.getAttribute('data-tab');
+      render();
+    });
+  });
+
+  if (window.sketchup && sketchup.ready) sketchup.ready();
+</script>
+</body>
+</html>

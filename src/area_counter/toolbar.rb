@@ -15,7 +15,7 @@
 require 'sketchup.rb'
 
 # Оформление плагина: панель инструментов и меню.
-# Логика расчётов живёт в main.rb — здесь только UI.
+# Расчёт живёт в calc.rb, окно — в panel.rb.
 module BACommunity
   module AreaCounter
 
@@ -23,15 +23,35 @@ module BACommunity
     MENU_NAME    = 'area counter'.freeze
     ICONS_DIR    = File.join(File.dirname(__FILE__), 'icons').freeze
 
-    # Кнопки панели слева направо.
-    # :action — имя метода модуля; :stub означает «инструмент ещё не реализован».
+    # :action — метод модуля Panel; :stub — инструмент ещё не реализован.
     TOOLBAR_BUTTONS = [
       {
         icon:    'area_top',
-        action:  :my_method,
-        title:   'Площадь верхних граней',
-        tooltip: 'Площадь верхних граней',
-        status:  'Суммирует площадь верхних горизонтальных граней выделенных групп и компонентов'
+        action:  :count_now,
+        title:   'Посчитать площадь',
+        tooltip: 'Посчитать площадь выделенного',
+        status:  'Считает этажи внутри выделенного и открывает окно с итогами'
+      },
+      {
+        icon:    'schedule',
+        action:  :show,
+        title:   'Окно с таблицей',
+        tooltip: 'Окно с таблицей и итогами',
+        status:  'Открывает окно area counter: таблица по этажам, итоги, настройки способа'
+      },
+      {
+        icon:    'lengths',
+        action:  :highlight_now,
+        title:   'Подсветить посчитанное',
+        tooltip: 'Подсветить посчитанное',
+        status:  'Обводит во вьюпорте этажи, попавшие в расчёт; проблемные — другим цветом'
+      },
+      {
+        icon:    'export',
+        action:  :copy_now,
+        title:   'Копировать таблицу',
+        tooltip: 'Копировать таблицу в буфер',
+        status:  'Кладёт таблицу в буфер обмена — вставляется в Google Sheets и Excel как есть'
       },
       {
         icon:    'volume',
@@ -39,27 +59,6 @@ module BACommunity
         title:   'Объём выделенного',
         tooltip: 'Объём выделенного (в разработке)',
         status:  'Суммарный объём выделенных солидов — инструмент в разработке'
-      },
-      {
-        icon:    'lengths',
-        action:  :stub,
-        title:   'Длины и периметр',
-        tooltip: 'Длины и периметр (в разработке)',
-        status:  'Суммарная длина рёбер и периметр контуров — инструмент в разработке'
-      },
-      {
-        icon:    'schedule',
-        action:  :stub,
-        title:   'Спецификация',
-        tooltip: 'Спецификация (в разработке)',
-        status:  'Ведомость элементов с количеством и размерами — инструмент в разработке'
-      },
-      {
-        icon:    'export',
-        action:  :stub,
-        title:   'Экспорт расчёта',
-        tooltip: 'Экспорт расчёта (в разработке)',
-        status:  'Выгрузка результатов расчёта в CSV — инструмент в разработке'
       }
     ].freeze
 
@@ -76,14 +75,15 @@ module BACommunity
     end
 
     def self.not_implemented(title)
-      UI.messagebox("«#{title}»\n\nИнструмент ещё не реализован — кнопка зарезервирована.")
+      UI.messagebox("«#{title}»\n\nИнструмент ещё не реализован — кнопка зарезервирована.",
+                    MB_MULTILINE)
     end
 
     def self.run_button(spec)
       if spec[:action] == :stub
         not_implemented(spec[:title])
       else
-        send(spec[:action])
+        Panel.public_send(spec[:action])
       end
     end
 
@@ -105,7 +105,7 @@ module BACommunity
       toolbar = UI::Toolbar.new(TOOLBAR_NAME)
 
       TOOLBAR_BUTTONS.each_with_index do |spec, index|
-        # Отделяем рабочий инструмент от заготовок
+        # Отделяем счёт от того, что делают с результатом
         toolbar.add_separator if index == 1
         toolbar.add_item(build_command(spec))
       end

@@ -62,7 +62,7 @@
 ## Установка
 
 SketchUp → **Расширения → Менеджер расширений → Установить расширение** →
-выбрать `area_counter.rbz`. Панель появится сама; вернуть её потом можно через
+выбрать `area_counter0.3_test.rbz`. Панель появится сама; вернуть её потом можно через
 **Вид → Панели инструментов → area counter**.
 
 ## Структура
@@ -81,8 +81,8 @@ src/
     icons/                         *.svg (Windows) + *_24.png / *_16.png (фолбэк)
 tools/
   build_icons.ps1                  перерисовывает PNG-фолбэки иконок
-  build_rbz.ps1                    собирает src/ в area_counter.rbz
-area_counter.rbz                   готовый пакет для установки
+  build_rbz.ps1                    собирает src/ в area_counter<версия><суффикс>.rbz
+area_counter0.3_test.rbz           готовый пакет для установки
 ```
 
 Пространство имён — `BACommunity::AreaCounter`.
@@ -92,6 +92,17 @@ area_counter.rbz                   готовый пакет для устано
 ```bash
 powershell -ExecutionPolicy Bypass -File "tools\build_rbz.ps1"
 ```
+
+Имя пакета собирается само: версия читается из `src/area_counter.rb`, а к ней
+добавляется суффикс, по умолчанию `_test`. Когда решим катить в прод — собрать
+без суффикса:
+
+```bash
+powershell -ExecutionPolicy Bypass -File "tools\build_rbz.ps1" -Suffix ""
+```
+
+Прежние пакеты скрипт сам убирает из корня в `build/backup`, чтобы случайно не
+поставили старую сборку.
 
 Иконки перерисовываются отдельно, только если менялись формы:
 

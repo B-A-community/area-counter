@@ -18,20 +18,15 @@ require 'json'
 module BACommunity
   module AreaCounter
 
-    # Окно плагина. Считает по нажатию, показывает таблицу и итоги,
-    # отдаёт таблицу в буфер обмена и включает подсветку.
+    # Окно плагина. Считает по нажатию, показывает дерево и итоги,
+    # отдаёт таблицу нужного уровня в буфер обмена и включает подсветку.
     module Panel
 
       HTML_FILE = File.join(File.dirname(__FILE__), 'html', 'panel.html').freeze
 
-      # Строк в списке. Таблица в буфер уходит целиком, а вот рисовать
-      # тысячи строк в окне бессмысленно и медленно.
-      MAX_ROWS = 400
-
       @dialog = nil
       @roots  = nil
       @report = nil
-      @leaves = []
       @note   = nil
       @method = 'top'
       @offset = 1500
@@ -51,9 +46,9 @@ module BACommunity
           scrollable:      false,
           resizable:       true,
           width:           940,
-          height:          560,
+          height:          600,
           min_width:       720,
-          min_height:      420,
+          min_height:      440,
           style:           UI::HtmlDialog::STYLE_DIALOG
         )
         @dialog.set_file(HTML_FILE)
@@ -72,14 +67,15 @@ module BACommunity
         end
         dialog.add_action_callback('highlight') { |_ctx| do_highlight }
         dialog.add_action_callback('stop_highlight') { |_ctx| Highlight.stop; push }
-        dialog.add_action_callback('zoom') do |_ctx, index|
-          node = @leaves[index.to_i]
-          Highlight.zoom_to(node)
+        dialog.add_action_callback('zoom') do |_ctx, id|
+          entry = @report && @report[:entries][id.to_i]
+          Highlight.zoom_to(entry.node) if entry
         end
-        dialog.add_action_callback('copied') do |_ctx, ok|
-          note = ok ? 'Таблица скопирована — вставляйте в Google Sheets или Excel.'
-                    : 'Скопировать не удалось. Выделите таблицу и скопируйте вручную.'
+        dialog.add_action_callback('copied') do |_ctx, ok, label|
+          note = ok ? "Таблица «#{label}» скопирована — вставляйте в Google Sheets или Excel."
+                    : 'Скопировать не удалось. Попробуйте ещё раз.'
           say(note)
+          push
         end
       end
 
@@ -91,16 +87,13 @@ module BACommunity
 
         if @roots.nil?
           @report = nil
-          @leaves = []
           say('Выделите группу или компонент и нажмите «Посчитать».')
           push
           return
         end
 
         @report = Report.build(@roots)
-        @leaves = @report[:rows].map { |row| row[:node] }
-
-        spent = Time.now - started
+        spent   = Time.now - started
         say(format('Посчитано %d за %.1f с.', @report[:floors], spent))
         push
       end
@@ -133,36 +126,21 @@ module BACommunity
           'offset'    => @offset.to_i,
           'depth'     => @depth,
           'note'      => @note,
-          'columns'   => [],
-          'rows'      => [],
-          'hidden'    => 0,
-          'totals'    => { 'area' => '0,00', 'floors' => 0, 'problems' => 0 },
-          'tsv'       => ''
+          'tree'      => [],
+          'maxHeight' => 0,
+          'tables'    => {},
+          'totals'    => { 'area' => '0,00', 'floors' => 0, 'problems' => 0 }
         }
         return base if @report.nil?
 
-        rows = []
-        @report[:rows].first(MAX_ROWS).each_with_index do |row, index|
-          rows << {
-            'index'  => index,
-            'cells'  => @report[:cells][index],
-            'name'   => row[:path].last,
-            'parent' => row[:path].length > 1 ? row[:path][-2] : '',
-            'area'   => Report.number(row[:area]),
-            'status' => row[:status].to_s,
-            'reason' => row[:reason]
-          }
-        end
-
-        base['columns'] = @report[:columns]
-        base['rows']    = rows
-        base['hidden']  = [@report[:rows].length - rows.length, 0].max
-        base['totals']  = {
+        base['tree']      = @report[:tree]
+        base['maxHeight'] = @report[:max_height]
+        base['tables']    = @report[:tables]
+        base['totals']    = {
           'area'     => Report.number(@report[:total_area]),
           'floors'   => @report[:floors],
           'problems' => @report[:problems]
         }
-        base['tsv'] = Report.tsv(@report)
         base
       end
 

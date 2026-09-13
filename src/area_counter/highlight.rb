@@ -17,9 +17,12 @@ require 'sketchup.rb'
 module BACommunity
   module AreaCounter
 
-    # Подсветка того, что попало в расчёт: посчитанные этажи обводятся
-    # мятным, проблемные — янтарным. Ничего в модели не меняется,
+    # Подсветка того, что попало в расчёт. Ничего в модели не меняется,
     # рисование живёт только во вьюпорте.
+    #
+    # Габариты этажей — тонкой линией: посчитанные мятным, проблемные янтарным.
+    # Контуры сечения — толстой: замкнутые мятным, разошедшиеся куски янтарным.
+    # По ним видно, где именно сечение не сошлось и что в него не попало.
     module Highlight
 
       OK_COLOR      = Sketchup::Color.new(168, 222, 196)
@@ -51,10 +54,32 @@ module BACommunity
 
         def draw(view)
           @items.each do |item|
-            next if item[:bbox].nil?
-            view.drawing_color = item[:status] == :problem ? PROBLEM_COLOR : OK_COLOR
-            view.line_width = item[:status] == :problem ? 4 : 2
-            view.draw(GL_LINES, box_lines(item[:bbox]))
+            problem = item[:status] == :problem
+
+            if item[:bbox]
+              view.drawing_color = problem ? PROBLEM_COLOR : OK_COLOR
+              view.line_width = 1
+              view.draw(GL_LINES, box_lines(item[:bbox]))
+            end
+
+            view.line_width = 3
+            (item[:loops] || []).each do |ring|
+              next if ring.length < 2
+              view.drawing_color = OK_COLOR
+              view.draw(GL_LINE_LOOP, ring)
+            end
+            (item[:opens] || []).each do |chain|
+              next if chain.length < 2
+              view.drawing_color = PROBLEM_COLOR
+              view.draw(GL_LINE_STRIP, chain)
+            end
+
+            outline = item[:envelope] || []
+            if outline.length >= 2
+              view.drawing_color = OK_COLOR
+              view.line_width = 2
+              view.draw(GL_LINES, outline)
+            end
           end
         end
 
@@ -90,7 +115,9 @@ module BACommunity
 
       def self.show(nodes)
         items = Calc.leaves(nodes).map do |node|
-          { bbox: node.bbox, status: node.status }
+          { bbox: node.bbox, status: node.status,
+            loops: node.loops || [], opens: node.opens || [],
+            envelope: node.envelope || [] }
         end
         return false if items.empty?
         Sketchup.active_model.select_tool(BoxTool.new(items))
@@ -101,12 +128,43 @@ module BACommunity
         Sketchup.active_model.select_tool(nil)
       end
 
+      # Камеру наводим по мировому габариту, а не через view.zoom(entity):
+      # для вложенного объекта тот берёт локальные координаты и улетает
+      # к началу осей. Направление взгляда сохраняем, меняем только дистанцию.
       def self.zoom_to(node)
-        return false if node.nil? || node.entity.nil? || node.entity.deleted?
+        return false if node.nil? || node.bbox.nil?
         model = Sketchup.active_model
-        model.selection.clear
-        model.selection.add(node.entity)
-        model.active_view.zoom(node.entity)
+        view  = model.active_view
+
+        if node.entity && !node.entity.deleted?
+          model.selection.clear
+          model.selection.add(node.entity)
+        end
+
+        low, high = node.bbox
+        box = Geom::BoundingBox.new
+        box.add(low)
+        box.add(high)
+        center = box.center
+        radius = [box.diagonal / 2.0, 1.0.m].max
+
+        camera = view.camera
+        dir    = camera.direction
+        up     = camera.up
+
+        if camera.perspective?
+          fov  = [camera.fov.to_f, 10.0].max
+          dist = radius / Math.sin(fov * Math::PI / 360.0) * 1.2
+          eye  = center.offset(dir.reverse, dist)
+          camera.set(eye, center, up)
+        else
+          eye = center.offset(dir.reverse, radius * 3.0)
+          camera.set(eye, center, up)
+          camera.height = radius * 2.4
+        end
+
+        view.camera = camera
+        view.invalidate
         true
       end
 

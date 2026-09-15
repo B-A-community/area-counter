@@ -22,7 +22,7 @@ module BACommunity
   module AreaCounter
 
     EXTENSION_NAME = 'area counter'.freeze
-    VERSION        = '0.4'.freeze
+    VERSION        = '0.5'.freeze
 
     loader = SketchupExtension.new(EXTENSION_NAME, File.join('area_counter', 'main.rb'))
     loader.copyright   = 'Copyright 2026 B&A community, Apache License 2.0'

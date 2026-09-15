@@ -18,16 +18,19 @@ require 'json'
 module BACommunity
   module AreaCounter
 
-    # Окно плагина. Считает по нажатию, показывает дерево и итоги,
-    # отдаёт таблицу нужного уровня в буфер обмена и включает подсветку.
+    # Окно плагина по дизайн-коду B&A: данные уходят в html после колбэка
+    # ready через execute_script("init(json)"), настройки живут в реестре
+    # компактной строкой без кавычек — JSON там ломается.
     module Panel
 
-      HTML_FILE = File.join(File.dirname(__FILE__), 'html', 'panel.html').freeze
+      HTML_FILE     = File.join(File.dirname(__FILE__), 'html', 'panel.html').freeze
+      PREFS_SECTION = 'BACommunity_AreaCounter'.freeze
 
       @dialog = nil
       @roots  = nil
       @report = nil
-      @note   = nil
+      @toast  = nil
+      @spent  = nil
       @method = 'top'
       @offset = 1500
       @depth  = 1
@@ -40,15 +43,17 @@ module BACommunity
           return @dialog
         end
 
+        load_prefs
+
         @dialog = UI::HtmlDialog.new(
           dialog_title:    'area counter',
           preferences_key: 'BACommunity_AreaCounter_Panel',
           scrollable:      false,
           resizable:       true,
-          width:           940,
-          height:          600,
-          min_width:       720,
-          min_height:      440,
+          width:           900,
+          height:          560,
+          min_width:       640,
+          min_height:      380,
           style:           UI::HtmlDialog::STYLE_DIALOG
         )
         @dialog.set_file(HTML_FILE)
@@ -66,16 +71,31 @@ module BACommunity
           recalc
         end
         dialog.add_action_callback('highlight') { |_ctx| do_highlight }
-        dialog.add_action_callback('stop_highlight') { |_ctx| Highlight.stop; push }
         dialog.add_action_callback('zoom') do |_ctx, id|
           entry = @report && @report[:entries][id.to_i]
           Highlight.zoom_to(entry.node) if entry
         end
-        dialog.add_action_callback('copied') do |_ctx, ok, label|
-          note = ok ? "Таблица «#{label}» скопирована — вставляйте в Google Sheets или Excel."
-                    : 'Скопировать не удалось. Попробуйте ещё раз.'
-          say(note)
-          push
+        dialog.add_action_callback('save_prefs') do |_ctx, spec|
+          Sketchup.write_default(PREFS_SECTION, 'prefs', spec.to_s)
+          apply_prefs(spec.to_s)
+        end
+      end
+
+      # --- настройки ---------------------------------------------------------
+
+      def self.load_prefs
+        apply_prefs(Sketchup.read_default(PREFS_SECTION, 'prefs', nil).to_s)
+      end
+
+      # Строка вида "depth:1,method:section,offset:1500,copy:blocks"
+      def self.apply_prefs(spec)
+        spec.split(',').each do |pair|
+          key, value = pair.split(':', 2)
+          case key
+          when 'depth'  then @depth  = value.to_i
+          when 'method' then @method = value.to_s
+          when 'offset' then @offset = value.to_f
+          end
         end
       end
 
@@ -87,14 +107,14 @@ module BACommunity
 
         if @roots.nil?
           @report = nil
-          say('Выделите группу или компонент и нажмите «Посчитать».')
+          @spent  = nil
+          say('Ничего не выделено. Выделите корпус, комплекс или этажи.')
           push
           return
         end
 
         @report = Report.build(@roots)
-        spent   = Time.now - started
-        say(format('Посчитано %d за %.1f с.', @report[:floors], spent))
+        @spent  = format('%.1f', Time.now - started)
         push
       end
 
@@ -109,15 +129,17 @@ module BACommunity
         push
       end
 
+      # Одноразовое сообщение: окно покажет его тостом
       def self.say(text)
-        @note = text
+        @toast = text
       end
 
       # --- отправка в окно ---------------------------------------------------
 
       def self.push
         return if @dialog.nil? || !@dialog.visible?
-        @dialog.execute_script("window.acRender(#{payload.to_json});")
+        @dialog.execute_script("init(#{payload.to_json});")
+        @toast = nil
       end
 
       def self.payload
@@ -125,11 +147,13 @@ module BACommunity
           'method'    => @method,
           'offset'    => @offset.to_i,
           'depth'     => @depth,
-          'note'      => @note,
+          'prefs'     => Sketchup.read_default(PREFS_SECTION, 'prefs', nil),
+          'toast'     => @toast,
+          'spent'     => @spent,
           'tree'      => [],
           'maxHeight' => 0,
           'tables'    => {},
-          'totals'    => { 'area' => '0,00', 'floors' => 0, 'problems' => 0 }
+          'totals'    => nil
         }
         return base if @report.nil?
 

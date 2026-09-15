@@ -62,16 +62,12 @@ module BACommunity
       }
     ].freeze
 
-    # Пара путей [большая иконка, маленькая иконка].
-    # SVG понимает только Windows-версия SketchUp (2016+), macOS вместо него
-    # требует PDF — поэтому там откатываемся на PNG.
+    # По дизайн-коду B&A один и тот же плоский SVG идёт и в small_icon,
+    # и в large_icon. Целевая платформа — SketchUp 2024 на Windows; macOS
+    # SVG не понимает, ему нужен PDF, которого у нас нет.
     def self.icon_paths(name)
       svg = File.join(ICONS_DIR, "#{name}.svg")
-      if Sketchup.platform == :platform_win && File.exist?(svg)
-        [svg, svg]
-      else
-        [File.join(ICONS_DIR, "#{name}_24.png"), File.join(ICONS_DIR, "#{name}_16.png")]
-      end
+      [svg, svg]
     end
 
     def self.not_implemented(title)

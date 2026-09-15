@@ -1,8 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
-  <!-- Объём: сплошной изокуб, три грани разной светлоты -->
-  <g fill="none" stroke="#3C3C3C" stroke-width="1.3" stroke-linejoin="round">
-    <polygon points="3,7 12,12 12,22 3,17" fill="#EDEDED"/>
-    <polygon points="12,12 21,7 21,17 12,22" fill="#D8D8D8"/>
-    <polygon points="12,2 21,7 12,12 3,7" fill="#FAFAFA"/>
-  </g>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <!-- Объём (заготовка): изометрический блок, без цвета данных — инструмент ещё не работает -->
+  <path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z" fill="#FFFFFF" stroke="#3B3B38" stroke-width="1.6" stroke-linejoin="round"/>
+  <path d="M12 3v9m0 0l8-4.5M12 12l-8-4.5M12 12v9" fill="none" stroke="#3B3B38" stroke-width="1.6" stroke-linejoin="round"/>
+  <path d="M12 12l8-4.5v9L12 21z" fill="#ECECEA"/>
 </svg>

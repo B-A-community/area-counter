@@ -129,8 +129,10 @@ module BACommunity
 
         rows = @entries.select { |e| e.height == h }.map { |e| cells_for(e, h, max_h) }
 
-        { 'label' => plural(h), 'columns' => columns, 'rows' => rows.length,
-          'tsv' => tsv(columns, rows) }
+        # cells уходят в окно: оттуда таблица копируется в буфер сразу в двух
+        # форматах (TSV + HTML). tsv остаётся для самопроверки.
+        { 'label' => plural(h), 'columns' => columns, 'cells' => rows,
+          'rows' => rows.length, 'tsv' => tsv(columns, rows) }
       end
 
       def self.cells_for(entry, h, max_h)

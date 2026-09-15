@@ -1,8 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
-  <!-- Площадь верхних граней: изокуб, верхняя грань подсвечена акцентом -->
-  <g fill="none" stroke="#3C3C3C" stroke-width="1.3" stroke-linejoin="round">
-    <polygon points="3,7 12,12 12,22 3,17" fill="#F2F2F2"/>
-    <polygon points="12,12 21,7 21,17 12,22" fill="#E4E4E4"/>
-    <polygon points="12,2 21,7 12,12 3,7" fill="#4A90D9" stroke="#2D6FB0"/>
-  </g>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <!-- Посчитать площадь: план этажа с закрашенной площадью и размерной линией под ним.
+       Дизайн-код B&A: flat 24×24, данные #2B6CB0, железо #3B3B38, обводка 1.6 -->
+  <path d="M4.5 3.5h10v5h5v8h-15z" fill="#2B6CB0" stroke="#3B3B38" stroke-width="1.6" stroke-linejoin="round"/>
+  <path d="M4.5 20.5h15" stroke="#3B3B38" stroke-width="1.6" stroke-linecap="round"/>
+  <path d="M4.5 19v3M19.5 19v3" stroke="#3B3B38" stroke-width="1.6" stroke-linecap="round"/>
 </svg>

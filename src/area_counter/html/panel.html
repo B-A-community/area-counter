@@ -3,538 +3,311 @@
 <head>
 <meta charset="utf-8">
 <title>area counter</title>
+<!-- Дизайн-код плагинов B&A: ba.css / ba.js лежат рядом, правила — design/designcode.md в ralncs -->
+<link rel="stylesheet" href="ba.css">
 <style>
-  /* Палитра снята с референса: холодный сине-серый градиент,
-     полупрозрачные карточки со светлой рамкой, мятная черта у чисел. */
-  :root{
-    --bg-1:#6E767F;
-    --bg-2:#555D66;
-    --bg-3:#3C434B;
-    --rail:rgba(18,22,26,.38);
-    --list:rgba(22,26,30,.22);
-    --card:rgba(255,255,255,.10);
-    --card-line:rgba(255,255,255,.15);
-    --hair:rgba(255,255,255,.09);
-    --text:#EDF0F2;
-    --muted:#A6AEB6;
-    --dim:#828C95;
-    --mint:#ADE3C6;
-    --amber:#E2A860;
+  /* Только то, чего нет в ba.css: дерево в таблице и числа */
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  tr.branch td { font-weight: 600; }
+  tr.branch.h2 td { background: #fafaf9; }
+  td.name { cursor: pointer; }
+  td.name .chev {
+    display: inline-block; width: 14px; color: #888; font-size: 10px;
+    transition: transform .12s ease;
   }
-
-  *{box-sizing:border-box;}
-  html,body{height:100%;}
-  body{
-    margin:0; overflow:hidden;
-    font-family:'Segoe UI',system-ui,-apple-system,sans-serif;
-    font-weight:300; color:var(--text);
-    background:
-      radial-gradient(120% 90% at 12% 0%, rgba(255,255,255,.14) 0%, rgba(255,255,255,0) 55%),
-      linear-gradient(135deg, var(--bg-1) 0%, var(--bg-2) 45%, var(--bg-3) 100%);
-  }
-
-  .app{display:flex; height:100vh;}
-
-  /* --- боковая рейка с вертикальными подписями --------------------------- */
-  .rail{
-    width:46px; flex:0 0 46px; background:var(--rail);
-    display:flex; flex-direction:column; align-items:center;
-    padding:14px 0; gap:26px;
-    border-right:1px solid rgba(255,255,255,.06);
-  }
-  .rail button{
-    position:relative; width:34px; height:96px; flex:0 0 96px;
-    background:none; border:0; padding:0; cursor:pointer; border-radius:4px;
-  }
-  .rail button span{
-    position:absolute; left:50%; top:50%;
-    transform:translate(-50%,-50%) rotate(-90deg);
-    white-space:nowrap;
-    font:300 10.5px/1 'Segoe UI',sans-serif; letter-spacing:.18em;
-    text-transform:uppercase; color:var(--dim);
-  }
-  .rail button:hover span{color:var(--text);}
-  .rail button.on span{color:var(--mint);}
-  .rail button:focus-visible{outline:1px solid var(--mint); outline-offset:2px;}
-
-  /* --- список ------------------------------------------------------------ */
-  .list{
-    flex:1 1 auto; min-width:0; background:var(--list);
-    display:flex; flex-direction:column;
-    border-right:1px solid rgba(255,255,255,.06);
-  }
-  .list-head{
-    display:flex; align-items:baseline; justify-content:space-between; gap:12px;
-    padding:20px 26px 12px;
-  }
-  .list-head h1{margin:0; font-size:19px; font-weight:300; letter-spacing:.01em;}
-  .list-head .hint{font-size:11px; color:var(--dim); letter-spacing:.06em; white-space:nowrap;}
-  .fold{
-    display:flex; gap:14px; padding:0 26px 8px;
-  }
-  .fold button{
-    background:none; border:0; padding:0; cursor:pointer;
-    font:300 11px 'Segoe UI',sans-serif; color:var(--dim); letter-spacing:.04em;
-  }
-  .fold button:hover{color:var(--text);}
-
-  .scroll{flex:1 1 auto; overflow-y:auto; padding:0 26px 18px;}
-  .scroll::-webkit-scrollbar{width:8px;}
-  .scroll::-webkit-scrollbar-thumb{background:rgba(255,255,255,.14); border-radius:4px;}
-
-  /* узел дерева */
-  .node{
-    display:flex; align-items:center; gap:10px;
-    padding:11px 0; border-top:1px solid var(--hair);
-    cursor:pointer; background:none; border-left:0; border-right:0; border-bottom:0;
-    width:100%; text-align:left; color:inherit; font:inherit;
-  }
-  .node:hover .n-name{color:#fff;}
-  .node:focus-visible{outline:1px solid var(--mint); outline-offset:2px;}
-  .chev{
-    flex:0 0 16px; width:16px; height:16px; display:flex; align-items:center; justify-content:center;
-    color:var(--dim); font-size:10px; transition:transform .12s ease;
-  }
-  .node.branch .chev::before{content:'▾';}
-  .node.branch.closed .chev{transform:rotate(-90deg);}
-  .n-main{flex:1 1 auto; min-width:0; display:flex; flex-direction:column;}
-  .n-name{
-    display:block;
-    font-size:11px; letter-spacing:.13em; text-transform:uppercase;
-    color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-  }
-  .node.branch .n-name{font-size:12px; letter-spacing:.09em; text-transform:none; color:var(--muted);}
-  .node.branch.h2 .n-name{font-size:13px; color:var(--text);}
-  .n-sub{display:block; margin-top:4px; font-size:11px; color:var(--dim);}
-  .node.bad .n-sub{color:var(--amber);}
-  .n-val{
-    font-size:15px; color:var(--text); white-space:nowrap;
-    font-variant-numeric:tabular-nums;
-  }
-  .node.branch .n-val{color:var(--muted);}
-  .node.branch.h2 .n-val{color:var(--text); font-size:16px;}
-  .n-val small{font-size:10.5px; color:var(--dim); margin-left:4px;}
-  .node.bad .n-val{color:var(--amber);}
-  .kids{display:block;}
-  .kids.hidden{display:none;}
-
-  .empty{padding:40px 0; color:var(--dim); font-size:13px; line-height:1.7;}
-
-  /* --- карточки справа --------------------------------------------------- */
-  .side{
-    width:264px; flex:0 0 264px; padding:20px 20px 0;
-    display:flex; flex-direction:column; gap:14px; overflow-y:auto;
-  }
-  .side::-webkit-scrollbar{width:8px;}
-  .side::-webkit-scrollbar-thumb{background:rgba(255,255,255,.14); border-radius:4px;}
-  .brand{
-    text-align:right; font-size:10px; letter-spacing:.28em;
-    color:rgba(255,255,255,.35); text-transform:uppercase; padding-bottom:2px;
-  }
-  .card{
-    background:var(--card); border:1px solid var(--card-line);
-    border-radius:10px; padding:15px 16px 16px;
-    backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
-  }
-  .card h2{
-    margin:0 0 12px; font-size:11.5px; font-weight:300;
-    color:var(--muted); letter-spacing:.06em;
-  }
-  .stat{display:flex; align-items:center; gap:10px;}
-  .bar{width:2px; height:28px; background:var(--mint); border-radius:1px; flex:0 0 2px;}
-  .bar.amber{background:var(--amber);}
-  .val{font-size:27px; font-weight:200; line-height:1; font-variant-numeric:tabular-nums;}
-  .val small{font-size:12px; color:var(--muted); margin-left:5px; font-weight:300;}
-  .pair{display:flex; gap:18px;}
-  .pair > div{flex:1 1 0; min-width:0;}
-  .pair h3{
-    margin:0 0 8px; font-size:10.5px; font-weight:300;
-    color:var(--dim); letter-spacing:.08em;
-  }
-  .pair .val{font-size:21px;}
-
-  .field{display:flex; align-items:center; gap:10px; margin-top:10px;}
-  .field label{font-size:11px; color:var(--muted); flex:1 1 auto;}
-  .field input{
-    width:74px; background:rgba(0,0,0,.22); color:var(--text);
-    border:1px solid var(--card-line); border-radius:5px;
-    padding:6px 8px; font:300 13px 'Segoe UI',sans-serif; text-align:right;
-    font-variant-numeric:tabular-nums;
-  }
-  .field input:focus{outline:none; border-color:var(--mint);}
-
-  .seg{display:flex; gap:6px; margin-top:2px;}
-  .seg button{
-    flex:1 1 0; padding:8px 4px; cursor:pointer;
-    background:rgba(255,255,255,.05); color:var(--muted);
-    border:1px solid var(--card-line); border-radius:6px;
-    font:300 11px 'Segoe UI',sans-serif; letter-spacing:.02em;
-  }
-  .seg button.on{background:rgba(173,227,198,.16); border-color:var(--mint); color:#fff;}
-  .seg button:disabled{opacity:.35; cursor:default;}
-  .seg button:focus-visible{outline:1px solid var(--mint); outline-offset:2px;}
-  .card .tip{margin:10px 0 0; font-size:11px; color:var(--dim); line-height:1.5;}
-
-  /* --- нижняя панель ----------------------------------------------------- */
-  .foot{
-    position:absolute; left:46px; right:0; bottom:0;
-    display:flex; align-items:center; gap:10px;
-    padding:12px 20px; background:rgba(18,22,26,.30);
-    border-top:1px solid rgba(255,255,255,.08);
-    backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
-  }
-  .note{flex:1 1 auto; font-size:11.5px; color:var(--muted); min-width:0;}
-  .btn{
-    padding:8px 15px; cursor:pointer; white-space:nowrap;
-    background:rgba(255,255,255,.06); color:var(--text);
-    border:1px solid var(--card-line); border-radius:6px;
-    font:300 12px 'Segoe UI',sans-serif; letter-spacing:.02em;
-  }
-  .btn:hover{background:rgba(255,255,255,.13);}
-  .btn:focus-visible{outline:1px solid var(--mint); outline-offset:2px;}
-  .btn.primary{background:rgba(173,227,198,.18); border-color:var(--mint);}
-  .btn.primary:hover{background:rgba(173,227,198,.28);}
-
-  .list, .side{padding-bottom:56px;}
-  #clip{position:absolute; left:-9999px; top:0; width:10px; height:10px; opacity:0;}
+  tr.closed td.name .chev { transform: rotate(-90deg); }
+  tr.leaf td.name .chev { visibility: hidden; }
+  tr:hover td.name { color: #2b6cb0; }
+  .path { color: #888; font-weight: 400; }
+  .popover label.c { cursor: pointer; }
+  .popover .c input[type="number"] { width: 82px; padding: 3px 8px; margin-left: auto; }
+  #empty { padding: 28px 0; color: #888; }
 </style>
 </head>
 <body>
+  <header>
+    <button id="btnRun" class="primary">Посчитать</button>
+    <button id="btnHi" title="Обвести во вьюпорте посчитанное; при сечении — нарисовать его контур. Esc — выключить">Подсветить</button>
+    <button id="btnCopy" title="Таблица выбранного уровня в буфер: вставляется в Google Таблицы и Excel готовыми колонками">Скопировать</button>
+    <label class="opt" title="Показать только этажи, площади которых нельзя верить">
+      <input type="checkbox" id="onlyBad"> только проблемные
+    </label>
+    <span class="spacer"></span>
+    <button id="btnFold" title="Свернуть или развернуть все корпуса и комплексы">Свернуть всё</button>
+    <button id="btnSettings">Настройки ▾</button>
 
-<div class="app">
-
-  <nav class="rail">
-    <button type="button" data-tab="list" class="on"><span>Структура</span></button>
-    <button type="button" data-tab="bad"><span>Проблемы</span></button>
-    <button type="button" data-tab="setup"><span>Настройки</span></button>
-  </nav>
-
-  <section class="list">
-    <div class="list-head">
-      <h1 id="title">Структура</h1>
-      <span class="hint" id="hint">выделите группу и нажмите «Посчитать»</span>
-    </div>
-    <div class="fold" id="fold" hidden>
-      <button type="button" id="foldAll">Свернуть всё</button>
-      <button type="button" id="unfoldAll">Развернуть всё</button>
-    </div>
-    <div class="scroll" id="scroll">
-      <div class="empty">Ничего ещё не посчитано.<br>Выделите корпус или этажи в модели и нажмите «Посчитать».</div>
-    </div>
-  </section>
-
-  <aside class="side">
-    <div class="brand">area counter</div>
-
-    <div class="card">
-      <h2>Площадь</h2>
-      <div class="stat">
-        <span class="bar"></span>
-        <span class="val" id="totalArea">0,00<small>м²</small></span>
+    <div id="settings" class="popover">
+      <div class="g">
+        <div class="g-head">Что выделено</div>
+        <label class="c"><input type="radio" name="depth" value="0"> Этажи</label>
+        <label class="c"><input type="radio" name="depth" value="1" checked> Корпус</label>
+        <label class="c"><input type="radio" name="depth" value="2"> Комплекс</label>
+      </div>
+      <div class="g">
+        <div class="g-head">Способ</div>
+        <label class="c"><input type="radio" name="method" value="top" checked> Верхняя грань</label>
+        <label class="c"><input type="radio" name="method" value="section"> Сечение</label>
+        <div class="c">Отметка от низа этажа, мм <input type="number" id="offset" value="1500" min="0" step="50"></div>
+      </div>
+      <div class="g">
+        <div class="g-head">Копировать</div>
+        <label class="c"><input type="radio" name="copy" value="floors"> Этажи — для проверки</label>
+        <label class="c"><input type="radio" name="copy" value="blocks" checked> Корпуса</label>
+        <label class="c"><input type="radio" name="copy" value="complexes"> Комплексы</label>
+      </div>
+      <div class="foot">
+        <span class="hint">Этажи лежат на выбранной глубине под выделенным и считаются целиком.</span>
+        <button id="btnReset">Сбросить</button>
       </div>
     </div>
+  </header>
 
-    <div class="card">
-      <h2>Посчитано</h2>
-      <div class="pair">
-        <div>
-          <h3>Этажей</h3>
-          <div class="stat"><span class="bar"></span><span class="val" id="floors">0</span></div>
-        </div>
-        <div>
-          <h3>Проблем</h3>
-          <div class="stat"><span class="bar amber" id="probBar"></span><span class="val" id="problems">0</span></div>
-        </div>
-      </div>
-    </div>
+  <div id="status">Выделите корпус, комплекс или сами этажи и нажмите «Посчитать».</div>
 
-    <div class="card">
-      <h2>Что выделено</h2>
-      <div class="seg">
-        <button type="button" id="d0">Этажи</button>
-        <button type="button" id="d1" class="on">Корпус</button>
-        <button type="button" id="d2">Комплекс</button>
-      </div>
-    </div>
+  <div id="wrap">
+    <table>
+      <thead>
+        <!-- без class="col": это одноуровневая шапка, tr.col в ba.css прилипает на 24px ниже -->
+        <tr>
+          <th>Объект</th>
+          <th>Уровень</th>
+          <th class="num">Этажей</th>
+          <th class="num">Площадь, м²</th>
+          <th>Статус</th>
+        </tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <div id="empty">Ничего ещё не посчитано.</div>
+  </div>
 
-    <div class="card">
-      <h2>Способ</h2>
-      <div class="seg">
-        <button type="button" id="mTop" class="on">Верхняя грань</button>
-        <button type="button" id="mSection">Сечение</button>
-      </div>
-      <div class="field">
-        <label for="offset">Отметка, мм</label>
-        <input type="number" id="offset" value="1500" min="0" step="50">
-      </div>
-    </div>
+  <footer>
+    Сечение по контуру смыкает разрывы до 50 мм и вычитает дворы. Если замкнутого контура нет,
+    считается огибающая: разрывы 100–200 мм, дворы не вычитаются — в статусе этажа так и написано.
+    Площади в м², числа с запятой.
+  </footer>
+  <div id="toast"></div>
 
-    <div class="card">
-      <h2>Копировать таблицу</h2>
-      <div class="seg" id="copySeg">
-        <button type="button" data-key="floors">Этажи</button>
-        <button type="button" data-key="blocks">Корпуса</button>
-        <button type="button" data-key="complexes">Комплексы</button>
-      </div>
-      <p class="tip" id="copyTip">Строка на объект выбранного уровня. Площади старших уровней — в тех же строках.</p>
-    </div>
-  </aside>
-
-</div>
-
-<div class="foot">
-  <span class="note" id="note">Готов к работе.</span>
-  <button type="button" class="btn" id="btnHi">Подсветить</button>
-  <button type="button" class="btn" id="btnCopy">Копировать</button>
-  <button type="button" class="btn primary" id="btnRun">Посчитать</button>
-</div>
-
-<textarea id="clip"></textarea>
-
+<script src="ba.js"></script>
 <script>
-  var STATE = { tree: [], tables: {}, maxHeight: 0, method: 'top', offset: 1500, depth: 1 };
-  var TAB = 'list';
-  var COPY_KEY = 'blocks';
-  var CLOSED = {};          // ключ узла -> свёрнут
+  var DATA = { tree: [], tables: {}, maxHeight: 0, method: 'top', offset: 1500, depth: 1, totals: null };
+  var CLOSED = {};
   var LABELS = { floors: 'Этажи', blocks: 'Корпуса', complexes: 'Комплексы' };
 
-  function esc(s){
-    return String(s == null ? '' : s)
-      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  function radio(name) {
+    var el = document.querySelector('input[name="' + name + '"]:checked');
+    return el ? el.value : null;
+  }
+  function setRadio(name, value) {
+    var el = document.querySelector('input[name="' + name + '"][value="' + value + '"]');
+    if (el) el.checked = true;
+  }
+  function settings() {
+    return {
+      depth: parseInt(radio('depth'), 10),
+      method: radio('method'),
+      offset: parseFloat(document.getElementById('offset').value) || 1500,
+      copy: radio('copy')
+    };
+  }
+  // В реестр SketchUp — компактной строкой без кавычек, JSON там ломается
+  function savePrefs() {
+    var s = settings();
+    sketchup.save_prefs('depth:' + s.depth + ',method:' + s.method + ',offset:' + s.offset + ',copy:' + s.copy);
+  }
+  function applyPrefs(str) {
+    if (!str) return;
+    String(str).split(',').forEach(function (pair) {
+      var kv = pair.split(':');
+      if (kv[0] === 'depth')  setRadio('depth', kv[1]);
+      if (kv[0] === 'method') setRadio('method', kv[1]);
+      if (kv[0] === 'copy')   setRadio('copy', kv[1]);
+      if (kv[0] === 'offset') document.getElementById('offset').value = kv[1];
+    });
   }
 
-  /* --- дерево ------------------------------------------------------------- */
+  /* ---------- дерево в таблице ---------- */
 
-  function nodeKey(parentKey, i, n){ return parentKey + '/' + i + ':' + n.name; }
+  function nodeKey(parentKey, i, n) { return parentKey + '/' + i + ':' + n.name; }
 
-  function renderNode(n, parentKey, i, indent){
+  function statusCell(n) {
+    if (n.children && n.children.length) return '<span class="dim">—</span>';
+    if (n.status === 'problem') return '<span class="pill bad" title="Площади этого этажа верить нельзя">' + BA.esc(n.reason || 'проблема') + '</span>';
+    if (n.reason) return '<span class="pill warn" title="Считалось по огибающей: дворы не вычтены, разрывы до 100–200 мм">' + BA.esc(n.reason) + '</span>';
+    return '<span class="pill ok">посчитано</span>';
+  }
+
+  function renderNode(n, parentKey, i, indent, hiddenByParent, out) {
     var key = nodeKey(parentKey, i, n);
     var branch = n.children && n.children.length;
     var closed = !!CLOSED[key];
-    var bad = n.status === 'problem';
-
-    var cls = 'node' + (branch ? ' branch h' + n.height : '') + (closed ? ' closed' : '') + (bad ? ' bad' : '');
-    var sub = branch
-      ? esc(n.level) + ' · этажей ' + n.floors
-      : esc(n.reason || 'посчитано');
-
-    var html = '<button type="button" class="' + cls + '" data-id="' + n.id + '" data-key="' + esc(key) +
-               '" style="padding-left:' + (indent * 18) + 'px">' +
-                 '<span class="chev"></span>' +
-                 '<span class="n-main">' +
-                   '<span class="n-name">' + esc(n.name) + '</span>' +
-                   '<span class="n-sub">' + sub + '</span>' +
-                 '</span>' +
-                 '<span class="n-val">' + esc(n.area) + '<small>м²</small></span>' +
-               '</button>';
-    if (branch){
-      html += '<div class="kids' + (closed ? ' hidden' : '') + '">';
-      n.children.forEach(function(c, j){ html += renderNode(c, key, j, indent + 1); });
-      html += '</div>';
+    var cls = (branch ? 'branch h' + n.height : 'leaf') + (closed ? ' closed' : '');
+    out.push('<tr class="' + cls + '" data-id="' + n.id + '" data-key="' + BA.esc(key) + '"' +
+             (hiddenByParent ? ' style="display:none"' : '') + '>' +
+      '<td class="name ellipsis" style="padding-left:' + (8 + indent * 18) + 'px" title="' + BA.esc(n.name) + ' — навести камеру">' +
+        '<span class="chev">▾</span>' + BA.esc(n.name) + '</td>' +
+      '<td><span class="pill neutral">' + BA.esc(n.level) + '</span></td>' +
+      '<td class="num">' + (branch ? n.floors : '') + '</td>' +
+      '<td class="num code">' + BA.esc(n.area) + '</td>' +
+      '<td>' + statusCell(n) + '</td>' +
+    '</tr>');
+    if (branch) {
+      n.children.forEach(function (c, j) { renderNode(c, key, j, indent + 1, hiddenByParent || closed, out); });
     }
-    return html;
   }
 
-  function collectLeaves(nodes, acc){
-    nodes.forEach(function(n){
-      if (n.children && n.children.length) collectLeaves(n.children, acc);
-      else acc.push(n);
+  function collectLeaves(nodes, path, acc) {
+    nodes.forEach(function (n) {
+      if (n.children && n.children.length) collectLeaves(n.children, path.concat(n.name), acc);
+      else acc.push({ node: n, path: path });
     });
     return acc;
   }
 
-  function allKeys(nodes, parentKey, acc){
-    nodes.forEach(function(n, i){
-      if (n.children && n.children.length){
+  function allBranchKeys(nodes, parentKey, acc) {
+    nodes.forEach(function (n, i) {
+      if (n.children && n.children.length) {
         var key = nodeKey(parentKey, i, n);
         acc.push(key);
-        allKeys(n.children, key, acc);
+        allBranchKeys(n.children, key, acc);
       }
     });
     return acc;
   }
 
-  function render(){
-    var host = document.getElementById('scroll');
-    var fold = document.getElementById('fold');
-    var tree = STATE.tree || [];
+  function render() {
+    var rows = document.getElementById('rows');
+    var empty = document.getElementById('empty');
+    var tree = DATA.tree || [];
+    var onlyBad = document.getElementById('onlyBad').checked;
+    var out = [];
 
-    document.getElementById('title').textContent =
-      TAB === 'bad' ? 'Проблемные' : (TAB === 'setup' ? 'Настройки' : 'Структура');
-    fold.hidden = !(TAB === 'list' && tree.length && STATE.maxHeight > 0);
-
-    if (TAB === 'setup'){
-      host.innerHTML = '<div class="empty">' +
-        '<b style="font-weight:400">Что выделено</b> — на сколько уровней вниз от выделенного лежат этажи. ' +
-        'Выделили сами этажи — «Этажи», выделили корпус — «Корпус», комплекс — «Комплекс». ' +
-        'Каждый этаж считается целиком, со всем, что внутри него вложено.<br><br>' +
-        '<b style="font-weight:400">Верхняя грань</b> — быстрый счёт по всем горизонтальным граням верхней отметки.<br>' +
-        '<b style="font-weight:400">Сечение</b> — горизонтальный разрез на отметке от низа каждого этажа. ' +
-        'Считается по контуру: разрывы в фасаде <b style="font-weight:400">до 50 мм</b> считаются одной стеной, ' +
-        'внутренние дворы вычитаются. Это точный путь, он работает на солиде.<br>' +
-        'Если замкнутого контура нет — здание собрано из отдельных панелей, — счёт идёт ' +
-        '<b style="font-weight:400">по огибающей</b>: грубее, разрыв смыкается на 100–200 мм, дворы не вычитаются. ' +
-        'В строке этажа так и написано. Если и огибающая дала меньше четверти габарита, этаж проблемный: ' +
-        'где-то разрыв шире допуска — «Подсветить» покажет, где.<br><br>' +
-        '<b style="font-weight:400">Подсветить</b> — при сечении рисует его контур на модели: мятный сошёлся, ' +
-        'янтарный — разошёлся. По нему видно, где именно и что в расчёт не попало.<br><br>' +
-        '<b style="font-weight:400">Копировать</b> — таблица выбранного уровня уходит в буфер, вставляется в ' +
-        'Google Sheets и Excel как есть. Числа с запятой.</div>';
-      return;
-    }
-
-    if (!tree.length){
-      host.innerHTML = '<div class="empty">' +
-        (TAB === 'bad' ? 'Проблемных этажей нет.' :
-         'Ничего ещё не посчитано.<br>Выделите корпус или этажи в модели и нажмите «Посчитать».') +
-        '</div>';
-      return;
-    }
-
-    var html = '';
-    if (TAB === 'bad'){
-      var bad = collectLeaves(tree, []).filter(function(n){ return n.status === 'problem'; });
-      if (!bad.length){ host.innerHTML = '<div class="empty">Проблемных этажей нет.</div>'; return; }
-      bad.forEach(function(n, i){ html += renderNode(n, 'bad', i, 0); });
+    if (onlyBad) {
+      collectLeaves(tree, [], []).forEach(function (item) {
+        if (item.node.status !== 'problem') return;
+        var n = item.node;
+        out.push('<tr class="leaf" data-id="' + n.id + '">' +
+          '<td class="name ellipsis" title="' + BA.esc(n.name) + ' — навести камеру"><span class="chev">▾</span>' +
+            (item.path.length ? '<span class="path">' + BA.esc(item.path.join(' / ')) + ' / </span>' : '') + BA.esc(n.name) + '</td>' +
+          '<td><span class="pill neutral">' + BA.esc(n.level) + '</span></td>' +
+          '<td class="num"></td><td class="num code">' + BA.esc(n.area) + '</td>' +
+          '<td>' + statusCell(n) + '</td></tr>');
+      });
+      empty.textContent = 'Проблемных этажей нет.';
     } else {
-      tree.forEach(function(n, i){ html += renderNode(n, '', i, 0); });
+      tree.forEach(function (n, i) { renderNode(n, '', i, 0, false, out); });
+      empty.textContent = 'Ничего ещё не посчитано.';
     }
-    host.innerHTML = html;
 
-    Array.prototype.forEach.call(host.querySelectorAll('.node'), function(el){
-      el.addEventListener('click', function(ev){
-        var chev = ev.target.closest && ev.target.closest('.chev');
-        if (chev && el.classList.contains('branch')){
-          var key = el.getAttribute('data-key');
+    rows.innerHTML = out.join('');
+    empty.style.display = out.length ? 'none' : '';
+    document.getElementById('btnFold').disabled = !(tree.length && DATA.maxHeight > 0 && !onlyBad);
+
+    Array.prototype.forEach.call(rows.querySelectorAll('td.name'), function (td) {
+      td.addEventListener('click', function (ev) {
+        var tr = td.parentNode;
+        if (ev.target.classList.contains('chev') && tr.classList.contains('branch')) {
+          var key = tr.getAttribute('data-key');
           CLOSED[key] = !CLOSED[key];
-          el.classList.toggle('closed', CLOSED[key]);
-          var kids = el.nextElementSibling;
-          if (kids && kids.classList.contains('kids')) kids.classList.toggle('hidden', CLOSED[key]);
+          render();
           return;
         }
-        sketchup.zoom(parseInt(el.getAttribute('data-id'), 10));
+        sketchup.zoom(parseInt(tr.getAttribute('data-id'), 10));
       });
     });
   }
 
-  /* --- копирование -------------------------------------------------------- */
-
-  function refreshCopySeg(){
-    var seg = document.getElementById('copySeg');
-    var available = Object.keys(STATE.tables || {});
-    if (available.length && available.indexOf(COPY_KEY) < 0){
-      COPY_KEY = available.indexOf('blocks') >= 0 ? 'blocks' : available[available.length - 1];
-    }
-    Array.prototype.forEach.call(seg.querySelectorAll('button'), function(b){
-      var key = b.getAttribute('data-key');
-      b.disabled = available.indexOf(key) < 0;
-      b.className = (key === COPY_KEY && !b.disabled) ? 'on' : '';
-    });
-    var t = STATE.tables && STATE.tables[COPY_KEY];
-    document.getElementById('btnCopy').textContent =
-      t ? 'Копировать: ' + LABELS[COPY_KEY] + ' (' + t.rows + ')' : 'Копировать';
-    document.getElementById('copyTip').textContent = t
-      ? 'Колонки: ' + t.columns.join(' · ')
-      : 'Строка на объект выбранного уровня. Площади старших уровней — в тех же строках.';
-  }
-
-  window.acCopy = function(){
-    var t = STATE.tables && STATE.tables[COPY_KEY];
-    var ta = document.getElementById('clip');
-    ta.value = t ? t.tsv : '';
-    var label = LABELS[COPY_KEY] || COPY_KEY;
-    if (!ta.value){ sketchup.copied(false, label); return; }
-    ta.select();
-    var ok = false;
-    try { ok = document.execCommand('copy'); } catch(e){ ok = false; }
-    if (ok){ sketchup.copied(true, label); return; }
-    if (navigator.clipboard){
-      navigator.clipboard.writeText(ta.value).then(
-        function(){ sketchup.copied(true, label); },
-        function(){ sketchup.copied(false, label); }
-      );
+  function renderStatus() {
+    var t = DATA.totals;
+    var el = document.getElementById('status');
+    if (!t || !(DATA.tree || []).length) {
+      el.textContent = 'Выделите корпус, комплекс или сами этажи и нажмите «Посчитать».';
       return;
     }
-    sketchup.copied(false, label);
-  };
+    var how = DATA.method === 'section' ? 'сечение на ' + DATA.offset + ' мм от низа этажа' : 'по верхней грани';
+    el.textContent = 'Этажей: ' + t.floors +
+      (t.problems ? ' (проблемных ' + t.problems + ')' : '') +
+      ' • площадь ' + t.area + ' м² • ' + how +
+      (DATA.spent ? ' • ' + DATA.spent + ' с' : '');
+  }
 
-  /* --- приём данных из Ruby ---------------------------------------------- */
-
-  window.acRender = function(data){
-    STATE = data || STATE;
-    document.getElementById('totalArea').innerHTML = esc(data.totals.area) + '<small>м²</small>';
-    document.getElementById('floors').textContent = data.totals.floors;
-    document.getElementById('problems').textContent = data.totals.problems;
-    document.getElementById('probBar').className = 'bar' + (data.totals.problems ? ' amber' : '');
-    document.getElementById('note').textContent = data.note || 'Готов к работе.';
-    document.getElementById('offset').value = data.offset;
-    document.getElementById('mTop').className = data.method === 'section' ? '' : 'on';
-    document.getElementById('mSection').className = data.method === 'section' ? 'on' : '';
-    [0, 1, 2].forEach(function(d){
-      document.getElementById('d' + d).className = (data.depth === d) ? 'on' : '';
+  function refreshCopyButton() {
+    var key = radio('copy');
+    var available = Object.keys(DATA.tables || {});
+    Array.prototype.forEach.call(document.querySelectorAll('input[name="copy"]'), function (r) {
+      r.disabled = available.length > 0 && available.indexOf(r.value) < 0;
     });
-    document.getElementById('hint').textContent =
-      data.tree.length ? (data.method === 'section' ? 'сечение на ' + data.offset + ' мм' : 'по верхней грани')
-                       : 'выделите группу и нажмите «Посчитать»';
-    refreshCopySeg();
+    if (available.length && available.indexOf(key) < 0) {
+      key = available.indexOf('blocks') >= 0 ? 'blocks' : available[available.length - 1];
+      setRadio('copy', key);
+    }
+    var t = DATA.tables && DATA.tables[key];
+    document.getElementById('btnCopy').textContent = t ? 'Скопировать: ' + LABELS[key] + ' (' + t.cells.length + ')' : 'Скопировать';
+    document.getElementById('btnCopy').disabled = !t;
+  }
+
+  /* ---------- данные из Ruby: ready → init(json) ---------- */
+
+  function init(data) {
+    if (data.prefs) applyPrefs(data.prefs);
+    DATA = data;
+    renderStatus();
+    refreshCopyButton();
     render();
+    if (data.toast) BA.toast(data.toast);
+  }
+  window.init = init;
+
+  window.acCopy = function () {
+    var key = radio('copy');
+    var t = DATA.tables && DATA.tables[key];
+    if (!t) { BA.toast('Сначала посчитайте — копировать пока нечего.'); return; }
+    BA.copyTable(t.columns, t.cells.map(function (row) {
+      return row.map(function (v) { return { v: v }; });
+    }));
   };
 
-  /* --- события ------------------------------------------------------------ */
+  /* ---------- события ---------- */
 
-  function run(){
-    var mm = parseFloat(document.getElementById('offset').value) || 1500;
-    document.getElementById('note').textContent = 'Считаю…';
-    sketchup.recalc(STATE.method, mm, STATE.depth);
+  function run() {
+    var s = settings();
+    document.getElementById('status').textContent = 'Считаю…';
+    sketchup.recalc(s.method, s.offset, s.depth);
   }
 
   document.getElementById('btnRun').addEventListener('click', run);
-  document.getElementById('btnHi').addEventListener('click', function(){ sketchup.highlight(); });
+  document.getElementById('btnHi').addEventListener('click', function () { sketchup.highlight(); });
   document.getElementById('btnCopy').addEventListener('click', window.acCopy);
+  document.getElementById('onlyBad').addEventListener('change', render);
 
-  document.getElementById('mTop').addEventListener('click', function(){ STATE.method = 'top'; run(); });
-  document.getElementById('mSection').addEventListener('click', function(){ STATE.method = 'section'; run(); });
-  document.getElementById('offset').addEventListener('change', function(){
-    if (STATE.method === 'section') run();
-  });
-
-  [0, 1, 2].forEach(function(d){
-    document.getElementById('d' + d).addEventListener('click', function(){
-      STATE.depth = d;
-      [0, 1, 2].forEach(function(k){
-        document.getElementById('d' + k).className = (k === d) ? 'on' : '';
-      });
-      run();
-    });
-  });
-
-  Array.prototype.forEach.call(document.querySelectorAll('#copySeg button'), function(b){
-    b.addEventListener('click', function(){
-      if (b.disabled) return;
-      COPY_KEY = b.getAttribute('data-key');
-      refreshCopySeg();
-    });
-  });
-
-  document.getElementById('foldAll').addEventListener('click', function(){
-    allKeys(STATE.tree || [], '', []).forEach(function(k){ CLOSED[k] = true; });
-    render();
-  });
-  document.getElementById('unfoldAll').addEventListener('click', function(){
-    CLOSED = {};
+  document.getElementById('btnFold').addEventListener('click', function () {
+    var keys = allBranchKeys(DATA.tree || [], '', []);
+    var anyOpen = keys.some(function (k) { return !CLOSED[k]; });
+    keys.forEach(function (k) { CLOSED[k] = anyOpen; });
+    this.textContent = anyOpen ? 'Развернуть всё' : 'Свернуть всё';
     render();
   });
 
-  Array.prototype.forEach.call(document.querySelectorAll('.rail button'), function(btn){
-    btn.addEventListener('click', function(){
-      Array.prototype.forEach.call(document.querySelectorAll('.rail button'), function(b){ b.className = ''; });
-      btn.className = 'on';
-      TAB = btn.getAttribute('data-tab');
-      render();
-    });
+  // Настройки: сохраняем сразу; пересчёт — если уже есть результат
+  Array.prototype.forEach.call(document.querySelectorAll('input[name="depth"], input[name="method"]'), function (r) {
+    r.addEventListener('change', function () { savePrefs(); if ((DATA.tree || []).length) run(); });
+  });
+  document.getElementById('offset').addEventListener('change', function () {
+    savePrefs();
+    if ((DATA.tree || []).length && radio('method') === 'section') run();
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('input[name="copy"]'), function (r) {
+    r.addEventListener('change', function () { savePrefs(); refreshCopyButton(); });
+  });
+  document.getElementById('btnReset').addEventListener('click', function () {
+    setRadio('depth', '1'); setRadio('method', 'top'); setRadio('copy', 'blocks');
+    document.getElementById('offset').value = 1500;
+    savePrefs(); refreshCopyButton();
+    if ((DATA.tree || []).length) run();
   });
 
-  if (window.sketchup && sketchup.ready) sketchup.ready();
+  BA.popover('btnSettings', 'settings');
+  window.addEventListener('DOMContentLoaded', function () { sketchup.ready(); });
 </script>
 </body>
 </html>

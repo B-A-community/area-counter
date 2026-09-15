@@ -1,12 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
-  <!-- Длины и периметр: обводка силуэта пунктиром, узлы отмечены -->
-  <polygon points="12,2 21,7 21,17 12,22 3,17 3,7"
-           fill="none" stroke="#3C3C3C" stroke-width="1.6"
-           stroke-linejoin="round" stroke-dasharray="3.2 2.2"/>
-  <g fill="#3C3C3C">
-    <rect x="10.6" y="0.6" width="2.8" height="2.8"/>
-    <rect x="10.6" y="20.6" width="2.8" height="2.8"/>
-    <rect x="1.6" y="5.6" width="2.8" height="2.8"/>
-    <rect x="19.6" y="15.6" width="2.8" height="2.8"/>
-  </g>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <!-- Подсветить: контур сечения на плане — сошедшаяся часть зелёным, разошедшийся кусок оранжевым -->
+  <path d="M4.5 4.5h11v5h4v10h-15z" fill="#FFFFFF" stroke="#3B3B38" stroke-width="1.6" stroke-linejoin="round" opacity="0.55"/>
+  <path d="M4.5 19.5v-15h11v5h4v4" fill="none" stroke="#2F855A" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M19.5 15.5v4h-8" fill="none" stroke="#DD8A20" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>

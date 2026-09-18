@@ -22,6 +22,7 @@ module BACommunity
     require File.join(HERE, 'calc.rb')
     require File.join(HERE, 'report.rb')
     require File.join(HERE, 'highlight.rb')
+    require File.join(HERE, 'export.rb')
     require File.join(HERE, 'panel.rb')
     require File.join(HERE, 'toolbar.rb')
 

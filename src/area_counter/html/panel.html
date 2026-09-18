@@ -19,9 +19,24 @@
   tr.leaf td.name .chev { visibility: hidden; }
   tr:hover td.name { color: #2b6cb0; }
   .path { color: #888; font-weight: 400; }
-  .popover label.c { cursor: pointer; }
-  .popover .c input[type="number"] { width: 82px; padding: 3px 8px; margin-left: auto; }
   #empty { padding: 28px 0; color: #888; }
+
+  /* Контент: таблица слева, закреплённая панель настроек справа (#side из ba.css) */
+  .main { flex: 1; display: flex; min-height: 0; }
+  #side { overflow: auto; flex: 0 0 250px; gap: 6px; }
+  #side .group h3 { margin: 6px 0 2px; }
+  #side label.opt { padding: 3px 0; cursor: pointer; }
+  #side .field { display: flex; flex-direction: column; gap: 4px; padding: 3px 0; color: #555; }
+  #side .field input[type="number"] { width: 100px; padding: 4px 8px; }
+  #side .hint { color: #888; font-size: 11px; line-height: 1.4; margin-top: 4px; }
+  #side .side-foot { margin-top: auto; padding-top: 10px; border-top: 1px solid #eee; }
+
+  /* Инструкция — попап под шапкой, шире стандартного */
+  #help.popover { width: 520px; max-width: calc(100vw - 28px); max-height: 75vh; overflow: auto; }
+  #help h3 { font-size: 12px; color: #666; font-weight: 600; margin: 10px 0 4px; }
+  #help h3:first-child { margin-top: 0; }
+  #help p { margin: 0 0 6px; color: #1c1c1c; }
+  #help b { font-weight: 600; }
 </style>
 </head>
 <body>
@@ -29,62 +44,114 @@
     <button id="btnRun" class="primary">Посчитать</button>
     <button id="btnHi" title="Обвести во вьюпорте посчитанное; при сечении — нарисовать его контур. Esc — выключить">Подсветить</button>
     <button id="btnCopy" title="Таблица выбранного уровня в буфер: вставляется в Google Таблицы и Excel готовыми колонками">Скопировать</button>
+    <button id="btnExport" title="Положить контуры сечения в модель: группа в корне, внутри та же иерархия, рёбра там, где резало. Отмена — Ctrl+Z">Выгрузить контуры</button>
     <label class="opt" title="Показать только этажи, площади которых нельзя верить">
       <input type="checkbox" id="onlyBad"> только проблемные
     </label>
     <span class="spacer"></span>
     <button id="btnFold" title="Свернуть или развернуть все корпуса и комплексы">Свернуть всё</button>
-    <button id="btnSettings">Настройки ▾</button>
+    <button id="btnHelp">Инструкция</button>
 
-    <div id="settings" class="popover">
-      <div class="g">
-        <div class="g-head">Что выделено</div>
-        <label class="c"><input type="radio" name="depth" value="0"> Этажи</label>
-        <label class="c"><input type="radio" name="depth" value="1" checked> Корпус</label>
-        <label class="c"><input type="radio" name="depth" value="2"> Комплекс</label>
-      </div>
-      <div class="g">
-        <div class="g-head">Способ</div>
-        <label class="c"><input type="radio" name="method" value="top" checked> Верхняя грань</label>
-        <label class="c"><input type="radio" name="method" value="section"> Сечение</label>
-        <div class="c">Отметка от низа этажа, мм <input type="number" id="offset" value="1500" min="0" step="50"></div>
-      </div>
-      <div class="g">
-        <div class="g-head">Копировать</div>
-        <label class="c"><input type="radio" name="copy" value="floors"> Этажи — для проверки</label>
-        <label class="c"><input type="radio" name="copy" value="blocks" checked> Корпуса</label>
-        <label class="c"><input type="radio" name="copy" value="complexes"> Комплексы</label>
-      </div>
-      <div class="foot">
-        <span class="hint">Этажи лежат на выбранной глубине под выделенным и считаются целиком.</span>
-        <button id="btnReset">Сбросить</button>
-      </div>
+    <div id="help" class="popover">
+      <h3>Что выделено</h3>
+      <p>На сколько уровней вниз от выделенного лежат этажи. Выделили сами этажи — «Этажи»,
+      выделили корпус — «Корпус», комплекс — «Комплекс». Плагин не знает слов «этаж» и «корпус»,
+      для него это число уровней. Каждый этаж считается целиком, со всем, что внутри него вложено.
+      Если вложенности меньше заявленной, выделенное само становится этажом.</p>
+
+      <h3>Верхняя грань</h3>
+      <p>Быстрый счёт по всем горизонтальным граням верхней отметки. Уступ наверху не съедает
+      площадь, повёрнутые оси группы не мешают.</p>
+
+      <h3>Сечение</h3>
+      <p>Горизонтальный разрез на отметке от низа каждого этажа (по умолчанию 1500 мм). Нужен для
+      пирамидального массинга, где верхняя грань меньше нижней. Модель при этом не меняется.</p>
+      <p><b>По контуру</b> — на солиде: отрезки сечения сшиваются в замкнутые контуры, разрывы
+      в фасаде <b>до 50 мм</b> считаются одной стеной, внутренние дворы вычитаются. Это точный путь.</p>
+      <p><b>По огибающей</b> — если замкнутого контура нет, потому что здание собрано из отдельных
+      панелей. Грубее: разрыв смыкается на 100–200 мм, дворы не вычитаются. В статусе этажа так
+      и написано. Если и огибающая дала меньше четверти габарита, этаж проблемный: где-то разрыв
+      шире допуска.</p>
+
+      <h3>Статусы</h3>
+      <p>Зелёный «посчитано» — площади можно верить. Оранжевый — посчитано по огибающей, с
+      оговорками выше. Красный — площади верить нельзя, причина в самой таблетке. Галочка
+      «только проблемные» оставляет в таблице красные.</p>
+
+      <h3>Подсветить</h3>
+      <p>Обводит во вьюпорте габариты посчитанного (зелёным) и проблемного (оранжевым). При
+      сечении рисует его контур: сошедшийся зелёным, разошедшиеся куски оранжевым — видно, где
+      именно не сомкнулось и что в расчёт не попало. Esc во вьюпорте — выключить.</p>
+
+      <h3>Клик по строке</h3>
+      <p>Наводит камеру на объект и выделяет его. Точку орбиты SketchUp кладёт чуть дальше
+      объекта — после зума орбита крутится не ровно вокруг него.</p>
+
+      <h3>Скопировать</h3>
+      <p>Таблица выбранного уровня уходит в буфер сразу текстом и HTML — вставляется в Google
+      Таблицы и Excel готовыми колонками. Числа с запятой. «Этажи» — для проверки, «Корпуса» и
+      «Комплексы» — рабочие; площади старших уровней есть в тех же строках.</p>
+
+      <h3>Выгрузить контуры</h3>
+      <p>Кладёт контуры сечения в модель: в корне появляется группа «area counter: сечение
+      N мм», внутри — та же иерархия, что в таблице (комплекс → корпус → этаж), в группе этажа
+      рёбра контура ровно там, где резало. Разошедшиеся куски — подгруппой «разошлось»,
+      огибающая — подгруппой «огибающая». Всё одной операцией: Ctrl+Z убирает целиком.
+      Работает только после счёта способом «Сечение».</p>
     </div>
   </header>
 
   <div id="status">Выделите корпус, комплекс или сами этажи и нажмите «Посчитать».</div>
 
-  <div id="wrap">
-    <table>
-      <thead>
-        <!-- без class="col": это одноуровневая шапка, tr.col в ba.css прилипает на 24px ниже -->
-        <tr>
-          <th>Объект</th>
-          <th>Уровень</th>
-          <th class="num">Этажей</th>
-          <th class="num">Площадь, м²</th>
-          <th>Статус</th>
-        </tr>
-      </thead>
-      <tbody id="rows"></tbody>
-    </table>
-    <div id="empty">Ничего ещё не посчитано.</div>
+  <div class="main">
+    <div id="wrap">
+      <table>
+        <thead>
+          <!-- без class="col": это одноуровневая шапка, tr.col в ba.css прилипает на 24px ниже -->
+          <tr>
+            <th>Объект</th>
+            <th>Уровень</th>
+            <th class="num">Этажей</th>
+            <th class="num">Площадь, м²</th>
+            <th>Статус</th>
+          </tr>
+        </thead>
+        <tbody id="rows"></tbody>
+      </table>
+      <div id="empty">Ничего ещё не посчитано.</div>
+    </div>
+
+    <aside id="side">
+      <div class="group">
+        <h3>Что выделено</h3>
+        <label class="opt"><input type="radio" name="depth" value="0"> Этажи</label>
+        <label class="opt"><input type="radio" name="depth" value="1" checked> Корпус</label>
+        <label class="opt"><input type="radio" name="depth" value="2"> Комплекс</label>
+      </div>
+      <div class="group">
+        <h3>Способ</h3>
+        <label class="opt"><input type="radio" name="method" value="top" checked> Верхняя грань</label>
+        <label class="opt"><input type="radio" name="method" value="section"> Сечение</label>
+        <div class="field">
+          <span>Отметка от низа этажа, мм</span>
+          <input type="number" id="offset" value="1500" min="0" step="50">
+        </div>
+      </div>
+      <div class="group">
+        <h3>Копировать</h3>
+        <label class="opt"><input type="radio" name="copy" value="floors"> Этажи — для проверки</label>
+        <label class="opt"><input type="radio" name="copy" value="blocks" checked> Корпуса</label>
+        <label class="opt"><input type="radio" name="copy" value="complexes"> Комплексы</label>
+      </div>
+      <div class="hint">Этажи лежат на выбранной глубине под выделенным и считаются целиком.
+      Настройки запоминаются.</div>
+      <div class="side-foot"><button id="btnReset">Сбросить</button></div>
+    </aside>
   </div>
 
   <footer>
-    Сечение по контуру смыкает разрывы до 50 мм и вычитает дворы. Если замкнутого контура нет,
-    считается огибающая: разрывы 100–200 мм, дворы не вычитаются — в статусе этажа так и написано.
-    Площади в м², числа с запятой.
+    Сечение по контуру смыкает разрывы до 50 мм и вычитает дворы; по огибающей — 100–200 мм,
+    дворы не вычитаются. Подробнее — «Инструкция». Площади в м², числа с запятой.
   </footer>
   <div id="toast"></div>
 
@@ -244,6 +311,8 @@
     var t = DATA.tables && DATA.tables[key];
     document.getElementById('btnCopy').textContent = t ? 'Скопировать: ' + LABELS[key] + ' (' + t.cells.length + ')' : 'Скопировать';
     document.getElementById('btnCopy').disabled = !t;
+    document.getElementById('btnExport').disabled =
+      !((DATA.tree || []).length && DATA.method === 'section');
   }
 
   /* ---------- данные из Ruby: ready → init(json) ---------- */
@@ -277,6 +346,13 @@
 
   document.getElementById('btnRun').addEventListener('click', run);
   document.getElementById('btnHi').addEventListener('click', function () { sketchup.highlight(); });
+  document.getElementById('btnExport').addEventListener('click', function () {
+    var t = DATA.totals || { floors: 0 };
+    if (!BA.confirmUndoable(['Положить контуры сечения в модель?',
+                             'Появится группа «area counter: сечение ' + DATA.offset + ' мм» с той же иерархией, ' +
+                             'этажей: ' + t.floors + '.'])) return;
+    sketchup.export_contours();
+  });
   document.getElementById('btnCopy').addEventListener('click', window.acCopy);
   document.getElementById('onlyBad').addEventListener('change', render);
 
@@ -306,7 +382,7 @@
     if ((DATA.tree || []).length) run();
   });
 
-  BA.popover('btnSettings', 'settings');
+  BA.popover('btnHelp', 'help');
   window.addEventListener('DOMContentLoaded', function () { sketchup.ready(); });
 </script>
 </body>

@@ -71,6 +71,7 @@ module BACommunity
           recalc
         end
         dialog.add_action_callback('highlight') { |_ctx| do_highlight }
+        dialog.add_action_callback('export_contours') { |_ctx| do_export }
         dialog.add_action_callback('zoom') do |_ctx, id|
           entry = @report && @report[:entries][id.to_i]
           Highlight.zoom_to(entry.node) if entry
@@ -126,6 +127,18 @@ module BACommunity
         end
         Highlight.show(@roots)
         say('Подсветка включена. Esc во вьюпорте — выключить.')
+        push
+      end
+
+      def self.do_export
+        if @roots.nil?
+          say('Сначала посчитайте сечением — выгружать пока нечего.')
+        elsif @method != 'section'
+          say('Контуры есть только у сечения: переключите способ и посчитайте заново.')
+        else
+          _ok, message = Export.contours(@roots, @offset)
+          say(message)
+        end
         push
       end
 

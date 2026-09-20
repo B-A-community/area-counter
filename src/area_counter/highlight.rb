@@ -75,11 +75,11 @@ module BACommunity
               view.draw(GL_LINE_STRIP, chain)
             end
 
-            outline = item[:envelope] || []
-            if outline.length >= 2
+            (item[:envelope] || []).each do |ring|
+              next if ring.length < 3
               view.drawing_color = OK_COLOR
               view.line_width = 2
-              view.draw(GL_LINES, outline)
+              view.draw(GL_LINE_LOOP, ring)
             end
           end
         end

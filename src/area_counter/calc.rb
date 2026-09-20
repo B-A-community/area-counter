@@ -336,26 +336,118 @@ module BACommunity
 
         grow(outside, frontier, width, height, radius)
 
-        inside_cells = 0
-        outline = []
-        z = cut
+        # Границу растра обводим в замкнутые контуры: наружные против часовой,
+        # дыры по часовой — так же, как контуры с солида. Площадь считаем по ним
+        # же, а не по клеткам: тогда то, что выгружается в модель, и то, что
+        # в таблице, — одно и то же.
+        rings = trace_boundary(outside, width, height, cell, minx, miny, margin, cut)
+        area  = loops_area(rings) * M2_PER_IN2
+
+        # Лесенку клеток по диагонали выпрямляем: допуск чуть меньше клетки
+        # убирает ступеньки растра, но оставляет настоящие выступы фасада.
+        smooth = rings.map { |ring| simplify_ring(ring, cell * 0.8) }
+                      .select { |ring| ring.length >= 3 && shoelace(ring).abs >= MIN_LOOP }
+
+        [area, smooth]
+      end
+
+      # Рёбра клеток между «внутри» и «снаружи», направленные так, чтобы
+      # внутренность была слева, сшиваются по концам в контуры.
+      def self.trace_boundary(outside, width, height, cell, minx, miny, margin, z)
+        edges = {}   # ключ начальной точки -> [начало, конец] в клетках
+        add = lambda do |ax, ay, bx, by|
+          (edges[[ax, ay]] ||= []) << [bx, by]
+        end
+
         (0...height).each do |iy|
           (0...width).each do |ix|
             idx = iy * width + ix
             next if outside[idx]
-            inside_cells += 1
-            x0 = minx + (ix - margin) * cell
-            y0 = miny + (iy - margin) * cell
-            x1 = x0 + cell
-            y1 = y0 + cell
-            outline << Geom::Point3d.new(x0, y0, z) << Geom::Point3d.new(x1, y0, z) if iy == 0 || outside[idx - width]
-            outline << Geom::Point3d.new(x0, y1, z) << Geom::Point3d.new(x1, y1, z) if iy == height - 1 || outside[idx + width]
-            outline << Geom::Point3d.new(x0, y0, z) << Geom::Point3d.new(x0, y1, z) if ix == 0 || outside[idx - 1]
-            outline << Geom::Point3d.new(x1, y0, z) << Geom::Point3d.new(x1, y1, z) if ix == width - 1 || outside[idx + 1]
+            add.call(ix, iy, ix + 1, iy)         if iy == 0 || outside[idx - width]           # низ: +x
+            add.call(ix + 1, iy, ix + 1, iy + 1) if ix == width - 1 || outside[idx + 1]       # право: +y
+            add.call(ix + 1, iy + 1, ix, iy + 1) if iy == height - 1 || outside[idx + width]  # верх: -x
+            add.call(ix, iy + 1, ix, iy)         if ix == 0 || outside[idx - 1]               # лево: -y
           end
         end
 
-        [inside_cells * cell * cell * M2_PER_IN2, outline]
+        rings = []
+        until edges.empty?
+          start = edges.keys.first
+          ring  = [start]
+          cur   = start
+          loop do
+            nexts = edges[cur]
+            break if nexts.nil? || nexts.empty?
+            nxt = nexts.shift
+            edges.delete(cur) if nexts.empty?
+            break if nxt == start
+            ring << nxt
+            cur = nxt
+          end
+          next if ring.length < 3
+          rings << ring.map do |(gx, gy)|
+            Geom::Point3d.new(minx + (gx - margin) * cell, miny + (gy - margin) * cell, z)
+          end
+        end
+        rings
+      end
+
+      # Дуглас — Пекер на замкнутом контуре: режем в двух самых далёких точках
+      # и упрощаем обе половины, чтобы стартовая точка не давала лишний излом.
+      def self.simplify_ring(ring, tolerance)
+        return ring if ring.length <= 4
+        far_i = 0
+        far_j = 0
+        best  = -1.0
+        step  = [ring.length / 200, 1].max   # на больших контурах ищем грубо
+        (0...ring.length).step(step) do |i|
+          (i + 1...ring.length).step(step) do |j|
+            d = ring[i].distance(ring[j])
+            if d > best
+              best  = d
+              far_i = i
+              far_j = j
+            end
+          end
+        end
+        first  = ring[far_i..far_j]
+        second = ring[far_j..-1] + ring[0..far_i]
+        (douglas_peucker(first, tolerance)[0...-1] + douglas_peucker(second, tolerance)[0...-1])
+      end
+
+      def self.douglas_peucker(points, tolerance)
+        return points if points.length < 3
+        a = points.first
+        b = points.last
+        far = 0
+        far_d = -1.0
+        (1...(points.length - 1)).each do |i|
+          d = point_line_distance(points[i], a, b)
+          if d > far_d
+            far_d = d
+            far   = i
+          end
+        end
+        if far_d > tolerance
+          left  = douglas_peucker(points[0..far], tolerance)
+          right = douglas_peucker(points[far..-1], tolerance)
+          left[0...-1] + right
+        else
+          [a, b]
+        end
+      end
+
+      def self.point_line_distance(p, a, b)
+        dx = b.x - a.x
+        dy = b.y - a.y
+        len2 = dx * dx + dy * dy
+        return p.distance(a) if len2 < 1.0e-12
+        t = ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2
+        t = 0.0 if t < 0.0
+        t = 1.0 if t > 1.0
+        px = a.x + t * dx
+        py = a.y + t * dy
+        Math.sqrt((p.x - px)**2 + (p.y - py)**2)
       end
 
       # Расширяет помеченные клетки на radius во все стороны — на месте,

@@ -319,6 +319,11 @@
 
   function init(data) {
     if (data.prefs) applyPrefs(data.prefs);
+    // То, чем реально считали, важнее сохранённых настроек — иначе радиокнопки
+    // могут показывать один способ, а статус — другой
+    if (data.method) setRadio('method', data.method);
+    if (typeof data.depth === 'number') setRadio('depth', String(data.depth));
+    if (data.offset) document.getElementById('offset').value = data.offset;
     DATA = data;
     renderStatus();
     refreshCopyButton();

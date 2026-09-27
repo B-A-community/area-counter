@@ -340,6 +340,9 @@
       return;
     }
     var how = DATA.method === 'section' ? 'сечение на ' + DATA.offset + ' мм от низа этажа' : 'по верхней грани';
+    if (DATA.method === 'section' && t.shifted) {
+      how += (t.floors === 1 ? ' (у этажа' : ' (у ' + t.shifted + ' из ' + t.floors) + ' высота подобрана другая — см. статус)';
+    }
     el.textContent = 'Этажей: ' + t.floors +
       (t.problems ? ' (проблемных ' + t.problems + ')' : '') +
       ' • площадь ' + t.area + ' м² • ' + how +
@@ -381,7 +384,8 @@
     renderStatus();
     refreshCopyButton();
     render();
-    if (data.toast) BA.toast(data.toast);
+    // Длинное сообщение (итог команды) держим дольше, чтобы успеть прочесть
+    if (data.toast) BA.toast(data.toast, data.toast.length > 70 ? 6000 : 2400);
   }
   window.init = init;
 

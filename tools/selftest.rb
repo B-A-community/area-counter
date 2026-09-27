@@ -291,12 +291,14 @@ module BACommunity
                                                     Geom::Transformation.scaling(-1, 1, 1))
         model.commit_operation
 
+        pids = [g1, g8].map { |e| S::Builder.pid_of(e) }
+        foreign_before = section_groups(model).length
         begin
           nodes = [g1, g8].map { |e| Calc.build(e, Geom::Transformation.new, 0, 'section', 0, opts) }
           ok, msg = S::Builder.build(nodes)
           verdict(out, ok, "B1 грань создана: #{msg}")
 
-          groups = section_groups(model)
+          groups = section_groups(model, pids)
           faces = groups.flat_map { |grp| grp.entities.grep(Sketchup::Face) }
           verdict(out, groups.length == 2 && faces.length == 2,
                   "B2 по одной грани на этаж: групп #{groups.length}, граней #{faces.length}")
@@ -311,23 +313,26 @@ module BACommunity
 
           # Повторный запуск заменяет прежнее сечение, а не плодит новое
           S::Builder.build(nodes)
-          again = section_groups(model)
+          again = section_groups(model, pids)
           verdict(out, again.length == 2, "B7 повторный запуск заменил сечения: групп #{again.length}")
 
           # Своё сечение не попадает в следующий расчёт
           r = section(g1, opts)
           check(out, 'B8 после выгрузки площадь та же', r[:area_m2], 100.0, 1.0e-6)
         ensure
+          # Убираем ТОЛЬКО свои сечения — тем же механизмом по floor_pid, которым
+          # плагин заменяет сечения при повторе. Чужие сечения в модели не трогаем.
           model.start_operation('area counter: самопроверка, уборка', true)
+          S::Builder.remove_previous(model, pids)
           [g1, g8].each { |e| e.erase! unless e.deleted? }
-          model.entities.grep(Sketchup::Group).each do |grp|
-            grp.erase! if grp.get_attribute('area_counter', 'role')
-          end
           model.commit_operation
         end
+        after = section_groups(model).length
+        verdict(out, after == foreign_before,
+                "B9 чужие сечения в модели не тронуты: было #{foreign_before}, осталось #{after}")
       end
 
-      def self.section_groups(model)
+      def self.section_groups(model, pids = nil)
         found = []
         walk = lambda do |ents|
           ents.grep(Sketchup::Group).each do |grp|
@@ -337,7 +342,7 @@ module BACommunity
           end
         end
         walk.call(model.entities)
-        found
+        pids ? found.select { |grp| pids.include?(grp.get_attribute('area_counter', 'floor_pid')) } : found
       end
 
       # --- измерение и отчёт ------------------------------------------------

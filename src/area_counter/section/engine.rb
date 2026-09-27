@@ -156,8 +156,8 @@ module BACommunity
           base[:area_m2] = (main_area - holes_area) * M2_PER_IN2
           unless base[:fragments].empty?
             frag = base[:fragments].inject(0.0) { |s, r| s + Simplifier.area(r) } * M2_PER_IN2
-            base[:warnings] << format('найдено отдельных фрагментов: %d (%.2f м², в площадь этажа не входят)',
-                                      base[:fragments].length, frag)
+            base[:warnings] << format('найдено отдельных фрагментов: %d (%s м², в площадь этажа не входят)',
+                                      base[:fragments].length, format('%.2f', frag).tr('.', ','))
           end
 
           if Simplifier.self_intersecting?(main, snap)

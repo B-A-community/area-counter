@@ -81,8 +81,7 @@ module BACommunity
     end
 
     def self.not_implemented(title)
-      UI.messagebox("«#{title}»\n\nИнструмент ещё не реализован — кнопка зарезервирована.",
-                    MB_MULTILINE)
+      Panel.notify("«#{title}» — инструмент ещё не реализован, пункт зарезервирован.")
     end
 
     def self.run_button(spec)

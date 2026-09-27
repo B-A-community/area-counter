@@ -4,7 +4,7 @@
 )
 
 # Собирает src\ в area_counter<версия><суффикс>.rbz — например
-# area_counter0.8_test.rbz. Имя архива на идентичность расширения не влияет:
+# area_counter0.9_test.rbz. Имя архива на идентичность расширения не влияет:
 # SketchUp читает area_counter.rb из КОРНЯ архива, а версию — из него же.
 # Предыдущая сборка сохраняется в build\backup.
 # Запуск:  powershell -ExecutionPolicy Bypass -File tools\build_rbz.ps1

@@ -26,8 +26,7 @@ module BACommunity
         model = Sketchup.active_model
         sel   = model.selection.to_a
         unless sel.length == 1 && Calc.group_like?(sel.first)
-          UI.messagebox('Выделите ровно одну группу или компонент — этаж, и запустите снова.',
-                        MB_MULTILINE)
+          Panel.notify('Сечение этажа: выделите ровно одну группу или компонент — этаж, и запустите снова.')
           return
         end
         entity = sel.first
@@ -44,7 +43,7 @@ module BACommunity
 
         cut, snap, gap, hidden, holes = input
         if cut.to_f <= 0 || snap.to_f <= 0 || gap.to_f < 0
-          UI.messagebox('Высота и допуск сварки должны быть больше нуля, зазор — не меньше нуля.', MB_MULTILINE)
+          Panel.notify('Сечение этажа: высота и допуск сварки должны быть больше нуля, зазор — не меньше нуля.')
           return
         end
         Panel.store_section_opts(cut_mm: cut.to_f, snap_mm: snap.to_f, gap_mm: gap.to_f,
@@ -57,19 +56,22 @@ module BACommunity
         r = node.section
 
         if r.nil? || r[:contour].nil?
-          UI.messagebox("Сечение не построено: #{node.reason || 'контур не найден'}.", MB_MULTILINE)
+          Panel.notify("Сечение не построено: #{node.reason || 'контур не найден'}.")
           return
         end
 
         ok, msg = Section::Builder.build([node])
-        lines = []
-        lines << format('Площадь этажа: %s м²', Report.number(r[:area_m2]))
-        lines << format('Высота реза: %d мм от низа этажа', r[:cut_mm].round)
-        lines << "Внимание: #{r[:reason]}" if r[:reason]
-        lines << ''
-        lines << msg
-        lines << 'Кликните по грани — площадь покажет Entity Info.' if ok
-        UI.messagebox(lines.join("\n"), MB_MULTILINE)
+        text = if ok
+                 format('Сечение «%s»: %s м² на высоте %d мм. Кликните по грани — площадь покажет ' \
+                        'Entity Info. Отмена — Ctrl+Z.',
+                        Report.display_name(node), Report.number(r[:area_m2]), r[:cut_mm].round)
+               else
+                 msg
+               end
+        # Итог — в окне плагина: этаж в таблице (оговорки — в его статусе),
+        # текст — тостом. UI.messagebox в SketchUp 2024 либо рисует жёлтый
+        # треугольник предупреждения, либо раздувается на пол-экрана.
+        Panel.show_section_result(node, text)
       end
 
     end # module Command

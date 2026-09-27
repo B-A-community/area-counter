@@ -176,6 +176,32 @@ module BACommunity
         push
       end
 
+      # Сообщение в окне плагина вместо UI.messagebox: в SketchUp 2024 обычное
+      # сообщение рисует жёлтый треугольник предупреждения, а многострочное —
+      # огромное окно на пол-экрана ради пары строк.
+      def self.notify(text)
+        existed = @dialog && @dialog.visible?
+        show
+        say(text)
+        push if existed   # новое окно получит сообщение само, по ready
+      end
+
+      # Итог команды «Сечение этажа…»: этаж — в таблице окна, итог — тостом
+      def self.show_section_result(node, text)
+        existed = @dialog && @dialog.visible?
+        # Сначала окно: при создании оно подтягивает сохранённые настройки,
+        # и если выставить результат раньше, они затрут глубину и способ —
+        # в таблице один этаж, а переключатель показывает «Комплекс».
+        show
+        @method = 'section'
+        @depth  = 0
+        @roots  = [node]
+        @report = Report.build(@roots)
+        @spent  = nil
+        say(text)
+        push if existed
+      end
+
       # Одноразовое сообщение: окно покажет его тостом
       def self.say(text)
         @toast = text
@@ -211,10 +237,17 @@ module BACommunity
         base['tree']      = @report[:tree]
         base['maxHeight'] = @report[:max_height]
         base['tables']    = @report[:tables]
+        # Этажи, у которых высота реза отличается от заданной (сдвиг с плиты
+        # или перебор высот), — чтобы статусная строка не врала про высоту
+        shifted = Calc.leaves(@roots).count do |leaf|
+          r = leaf.section
+          r && r[:cut_mm] && (r[:cut_mm] - @offset.to_f).abs > 0.5
+        end
         base['totals']    = {
           'area'     => Report.number(@report[:total_area]),
           'floors'   => @report[:floors],
-          'problems' => @report[:problems]
+          'problems' => @report[:problems],
+          'shifted'  => shifted
         }
         base
       end

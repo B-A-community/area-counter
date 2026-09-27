@@ -23,38 +23,48 @@ module BACommunity
     MENU_NAME    = 'area counter'.freeze
     ICONS_DIR    = File.join(File.dirname(__FILE__), 'icons').freeze
 
-    # :action — метод модуля Panel; :stub — инструмент ещё не реализован.
+    # :action — метод модуля Panel (или Command для :floor_section);
+    # :stub — инструмент ещё не реализован. На панели инструментов — только
+    # кнопки с toolbar: true, в меню — все.
     TOOLBAR_BUTTONS = [
       {
         icon:    'area_top',
         action:  :count_now,
+        toolbar: true,
         title:   'Посчитать площадь',
         tooltip: 'Посчитать площадь выделенного',
         status:  'Считает этажи внутри выделенного и открывает окно с итогами'
       },
       {
-        icon:    'schedule',
+        icon:    'area_top',
         action:  :show,
         title:   'Окно с таблицей',
         tooltip: 'Окно с таблицей и итогами',
         status:  'Открывает окно area counter: таблица по этажам, итоги, настройки способа'
       },
       {
-        icon:    'lengths',
+        icon:    'area_top',
         action:  :highlight_now,
         title:   'Подсветить посчитанное',
         tooltip: 'Подсветить посчитанное',
         status:  'Обводит во вьюпорте этажи, попавшие в расчёт; проблемные — другим цветом'
       },
       {
-        icon:    'export',
+        icon:    'area_top',
         action:  :copy_now,
         title:   'Копировать таблицу',
         tooltip: 'Копировать таблицу в буфер',
         status:  'Кладёт таблицу в буфер обмена — вставляется в Google Sheets и Excel как есть'
       },
       {
-        icon:    'volume',
+        icon:    'area_top',
+        action:  :floor_section,
+        title:   'Сечение этажа…',
+        tooltip: 'Сечение этажа',
+        status:  'Выделенный этаж: одна плоская грань по внешнему контуру сечения и её площадь'
+      },
+      {
+        icon:    'area_top',
         action:  :stub,
         title:   'Объём выделенного',
         tooltip: 'Объём выделенного (в разработке)',
@@ -76,10 +86,10 @@ module BACommunity
     end
 
     def self.run_button(spec)
-      if spec[:action] == :stub
-        not_implemented(spec[:title])
-      else
-        Panel.public_send(spec[:action])
+      case spec[:action]
+      when :stub          then not_implemented(spec[:title])
+      when :floor_section then Command.floor_section
+      else Panel.public_send(spec[:action])
       end
     end
 
@@ -100,9 +110,7 @@ module BACommunity
     def self.create_toolbar
       toolbar = UI::Toolbar.new(TOOLBAR_NAME)
 
-      TOOLBAR_BUTTONS.each_with_index do |spec, index|
-        # Отделяем счёт от того, что делают с результатом
-        toolbar.add_separator if index == 1
+      TOOLBAR_BUTTONS.select { |spec| spec[:toolbar] }.each do |spec|
         toolbar.add_item(build_command(spec))
       end
 

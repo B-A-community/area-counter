@@ -32,8 +32,13 @@ module BACommunity
       @toast  = nil
       @spent  = nil
       @method = 'top'
-      @offset = 1500
       @depth  = 1
+      # Параметры сечения по ТЗ; по умолчанию — Section::Engine::DEFAULTS
+      @offset = Section::Engine::DEFAULTS[:cut_mm]
+      @snap   = Section::Engine::DEFAULTS[:snap_mm]
+      @gap    = Section::Engine::DEFAULTS[:gap_mm]
+      @hidden = Section::Engine::DEFAULTS[:ignore_hidden]
+      @holes  = Section::Engine::DEFAULTS[:subtract_holes]
 
       # Метод называется show, а не open: open — приватный метод Kernel,
       # перекрывать его у модуля не стоит.
@@ -64,10 +69,14 @@ module BACommunity
 
       def self.attach_callbacks(dialog)
         dialog.add_action_callback('ready') { |_ctx| push }
-        dialog.add_action_callback('recalc') do |_ctx, method_key, offset_mm, depth|
+        dialog.add_action_callback('recalc') do |_ctx, method_key, offset_mm, depth, snap, gap, hidden, holes|
           @method = method_key.to_s
           @offset = offset_mm.to_f
           @depth  = depth.to_i
+          @snap   = snap.to_f if snap
+          @gap    = gap.to_f if gap
+          @hidden = hidden ? true : false unless hidden.nil?
+          @holes  = holes ? true : false unless holes.nil?
           recalc
         end
         dialog.add_action_callback('highlight') { |_ctx| do_highlight }
@@ -88,23 +97,48 @@ module BACommunity
         apply_prefs(Sketchup.read_default(PREFS_SECTION, 'prefs', nil).to_s)
       end
 
-      # Строка вида "depth:1,method:section,offset:1500,copy:blocks"
+      # Строка вида "depth:1,method:section,offset:1000,snap:1,gap:20,hidden:1,holes:0,copy:blocks"
       def self.apply_prefs(spec)
         spec.split(',').each do |pair|
           key, value = pair.split(':', 2)
           case key
           when 'depth'  then @depth  = value.to_i
           when 'method' then @method = value.to_s
-          when 'offset' then @offset = value.to_f
+          when 'offset' then @offset = value.to_f if value.to_f > 0
+          when 'snap'   then @snap   = value.to_f if value.to_f > 0
+          when 'gap'    then @gap    = value.to_f if value.to_f >= 0
+          when 'hidden' then @hidden = value == '1'
+          when 'holes'  then @holes  = value == '1'
           end
         end
+      end
+
+      def self.section_opts
+        load_prefs if @dialog.nil?
+        { cut_mm: @offset, snap_mm: @snap, gap_mm: @gap,
+          ignore_hidden: @hidden, subtract_holes: @holes }
+      end
+
+      # Команда «Сечение этажа» пишет в те же настройки, что и окно
+      def self.store_section_opts(o)
+        load_prefs
+        @offset = o[:cut_mm]
+        @snap   = o[:snap_mm]
+        @gap    = o[:gap_mm]
+        @hidden = o[:ignore_hidden]
+        @holes  = o[:subtract_holes]
+        copy = Sketchup.read_default(PREFS_SECTION, 'prefs', '').to_s[/copy:([a-z]+)/, 1] || 'blocks'
+        spec = format('depth:%d,method:%s,offset:%s,snap:%s,gap:%s,hidden:%d,holes:%d,copy:%s',
+                      @depth, @method, @offset, @snap, @gap, @hidden ? 1 : 0, @holes ? 1 : 0, copy)
+        Sketchup.write_default(PREFS_SECTION, 'prefs', spec)
+        push
       end
 
       # --- расчёт ------------------------------------------------------------
 
       def self.recalc
         started = Time.now
-        @roots  = Calc.run(@method, @offset, @depth)
+        @roots  = Calc.run(@method, @offset, @depth, section_opts)
 
         if @roots.nil?
           @report = nil
@@ -136,7 +170,7 @@ module BACommunity
         elsif @method != 'section'
           say('Контуры есть только у сечения: переключите способ и посчитайте заново.')
         else
-          _ok, message = Export.contours(@roots, @offset)
+          _ok, message = Section::Builder.build(@roots)
           say(message)
         end
         push
@@ -159,6 +193,10 @@ module BACommunity
         base = {
           'method'    => @method,
           'offset'    => @offset.to_i,
+          'snap'      => @snap,
+          'gap'       => @gap,
+          'hidden'    => @hidden,
+          'holes'     => @holes,
           'depth'     => @depth,
           'prefs'     => Sketchup.read_default(PREFS_SECTION, 'prefs', nil),
           'toast'     => @toast,

@@ -1,6 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-  <!-- Подсветить: контур сечения на плане — сошедшаяся часть зелёным, разошедшийся кусок оранжевым -->
-  <path d="M4.5 4.5h11v5h4v10h-15z" fill="#FFFFFF" stroke="#3B3B38" stroke-width="1.6" stroke-linejoin="round" opacity="0.55"/>
-  <path d="M4.5 19.5v-15h11v5h4v4" fill="none" stroke="#2F855A" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M19.5 15.5v4h-8" fill="none" stroke="#DD8A20" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
-</svg>

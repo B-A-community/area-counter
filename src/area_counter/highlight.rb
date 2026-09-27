@@ -74,13 +74,6 @@ module BACommunity
               view.drawing_color = PROBLEM_COLOR
               view.draw(GL_LINE_STRIP, chain)
             end
-
-            (item[:envelope] || []).each do |ring|
-              next if ring.length < 3
-              view.drawing_color = OK_COLOR
-              view.line_width = 2
-              view.draw(GL_LINE_LOOP, ring)
-            end
           end
         end
 
@@ -117,8 +110,7 @@ module BACommunity
       def self.show(nodes)
         items = Calc.leaves(nodes).map do |node|
           { bbox: node.bbox, status: node.status,
-            loops: node.loops || [], opens: node.opens || [],
-            envelope: node.envelope || [] }
+            loops: node.loops || [], opens: node.opens || [] }
         end
         return false if items.empty?
         Sketchup.active_model.select_tool(BoxTool.new(items))

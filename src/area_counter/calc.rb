@@ -22,20 +22,19 @@ module BACommunity
     # Якорь — то, что выделено. Этажи лежат на заданной глубине ПОД якорем,
     # и каждый считается целиком, со всем своим содержимым на любой вложенности.
     # Спускаться до самого низа нельзя: там уже не этажи, а витражи и панели.
+    #
+    # Способов два: верхняя грань (здесь) и сечение (модуль Section — по ТЗ
+    # «чистое горизонтальное сечение этажа»).
     module Calc
 
       M2_PER_IN2 = 0.00064516   # 1 кв. дюйм в кв. метрах
       Z_TOL      = 1.0.mm       # допуск «одна и та же отметка»
-      GAP        = 50.0.mm      # разрыв, который считаем одной стеной (В5)
-      # Контуры мельче этого — сечения импостов, пилястр, рам: это не площадь
-      # этажа, а шум рабочей модели. Двор или отдельный объём всегда крупнее.
-      MIN_LOOP   = 0.5 / M2_PER_IN2
 
-      # loops — замкнутые контуры сечения, opens — куски, которые не сошлись,
-      # envelope — огибающая (пары точек), если считали по ней;
-      # всё в мировых координатах, чтобы подсветка могла это нарисовать.
+      # loops   — контуры сечения (внешний, фрагменты, дворы), opens — снятые
+      #           «усы», где контур не сошёлся; всё в мировых координатах для подсветки;
+      # section — полный результат Section::Engine, из него строится грань в модели.
       Node = Struct.new(:entity, :name, :children, :area, :status, :reason,
-                        :bbox, :zmin, :loops, :opens, :envelope)
+                        :bbox, :zmin, :loops, :opens, :section)
 
       def self.group_like?(entity)
         entity.is_a?(Sketchup::Group) || entity.is_a?(Sketchup::ComponentInstance)
@@ -77,24 +76,30 @@ module BACommunity
         ''
       end
 
+      # Свои результаты (сечения на теге AC_Сечения) этажами не считаются
       def self.child_groups(entity)
-        inner_entities(entity).select { |e| group_like?(e) && shown?(e) }
+        inner_entities(entity).select do |e|
+          group_like?(e) && shown?(e) && !Section::Traversal.own_result?(e)
+        end
       end
 
       # --- обход -------------------------------------------------------------
 
       # depth — сколько уровней вниз от якоря лежат этажи.
-      # 0 — выделены сами этажи, 1 — выделен корпус, 2 — квартал.
-      def self.build(entity, parent_tr, depth, method_key, offset)
+      # 0 — выделены сами этажи, 1 — выделен корпус, 2 — комплекс.
+      # offset — отметка реза в дюймах (для совместимости); точные параметры
+      # сечения — в opts (см. Section::Engine::DEFAULTS).
+      def self.build(entity, parent_tr, depth, method_key, offset, opts = {})
+        opts = { cut_mm: offset.to_f * 25.4 }.merge(opts || {})
         tr = parent_tr * entity.transformation
 
-        return leaf(entity, tr, method_key, offset) if depth <= 0
+        return leaf(entity, tr, method_key, opts) if depth <= 0
 
         kids = child_groups(entity)
         # Глубже, чем есть, не лезем: якорь просто оказывается этажом сам.
-        return leaf(entity, tr, method_key, offset) if kids.empty?
+        return leaf(entity, tr, method_key, opts) if kids.empty?
 
-        children = kids.map { |kid| build(kid, tr, depth - 1, method_key, offset) }
+        children = kids.map { |kid| build(kid, tr, depth - 1, method_key, offset, opts) }
         branch(entity, children)
       end
 
@@ -103,36 +108,46 @@ module BACommunity
         boxes = children.map(&:bbox).compact
         bbox  = boxes.empty? ? nil : union_bbox(boxes)
         zmins = children.map(&:zmin).compact
-        Node.new(entity, name_of(entity), children, area, :ok, nil, bbox, zmins.min, [], [], [])
+        Node.new(entity, name_of(entity), children, area, :ok, nil, bbox, zmins.min, [], [], nil)
       end
 
-      def self.leaf(entity, tr, method_key, offset)
+      def self.leaf(entity, tr, method_key, opts)
         @counter = (@counter || 0) + 1
         Sketchup.status_text = "area counter: обработано этажей #{@counter}" if (@counter % 25).zero?
+
+        return section_leaf(entity, tr, opts) if method_key.to_s == 'section'
 
         faces = collect_faces(inner_entities(entity), tr)
         if faces.empty?
           return Node.new(entity, name_of(entity), [], 0.0, :problem,
-                          'внутри нет граней', nil, nil, [], [], [])
+                          'внутри нет граней', nil, nil, [], [], nil)
         end
 
-        section = method_key.to_s == 'section'
-        box, horiz, rings = scan(faces, section)
-        bbox = [box.min, box.max]
-
-        loops    = []
-        opens    = []
-        envelope = []
-        area, status, reason =
-          if section
-            area, status, reason, loops, opens, envelope = section_area(rings, box.min.z + offset)
-            [area, status, reason]
-          else
-            top_area(horiz)
-          end
-
+        box, horiz = scan(faces)
+        area, status, reason = top_area(horiz)
         Node.new(entity, name_of(entity), [], area, status, reason,
-                 bbox, box.min.z, loops, opens, envelope)
+                 [box.min, box.max], box.min.z, [], [], nil)
+      end
+
+      def self.section_leaf(entity, tr, opts)
+        r = Section::Engine.section(entity, tr, opts)
+        b = r[:bbox]
+        bbox = b ? [Geom::Point3d.new(b[0], b[1], b[2]), Geom::Point3d.new(b[3], b[4], b[5])] : nil
+        z = r[:height]
+        to3d = ->(ring) { ring.map { |(x, y)| Geom::Point3d.new(x, y, z) } }
+
+        loops = []
+        if r[:contour]
+          loops << to3d.call(r[:contour])
+          r[:fragments].each { |ring| loops << to3d.call(ring) }
+          r[:holes].each { |ring| loops << to3d.call(ring) }
+        end
+        opens = r[:whiskers].map do |(x1, y1, x2, y2)|
+          [Geom::Point3d.new(x1, y1, z), Geom::Point3d.new(x2, y2, z)]
+        end
+
+        Node.new(entity, name_of(entity), [], r[:area_m2], r[:status], r[:reason],
+                 bbox, bbox && bbox[0].z, loops, opens, r)
       end
 
       # Собирает грани вместе с накопленной трансформацией на всю глубину.
@@ -144,44 +159,32 @@ module BACommunity
           if klass == Sketchup::Face
             acc << [entity, tr] if shown?(entity)
           elsif klass == Sketchup::Group
-            collect_faces(entity.entities, tr * entity.transformation, acc) if shown?(entity)
+            collect_faces(entity.entities, tr * entity.transformation, acc) if shown?(entity) && !Section::Traversal.own_result?(entity)
           elsif klass == Sketchup::ComponentInstance
-            collect_faces(entity.definition.entities, tr * entity.transformation, acc) if shown?(entity)
+            collect_faces(entity.definition.entities, tr * entity.transformation, acc) if shown?(entity) && !Section::Traversal.own_result?(entity)
           end
         end
         acc
       end
 
-      # Один проход по вершинам: габарит, горизонтальные грани и — для сечения —
-      # все контуры граней уже в мировых координатах. Трансформация вершины
-      # самая дорогая операция здесь, поэтому делается ровно один раз.
-      def self.scan(faces, with_rings)
+      # Один проход по вершинам: габарит и горизонтальные грани.
+      def self.scan(faces)
         box   = Geom::BoundingBox.new
         horiz = []
-        rings = []
         faces.each do |(face, tr)|
           low  = nil
           high = nil
-          outer = face.outer_loop.vertices.map do |vertex|
+          face.outer_loop.vertices.each do |vertex|
             point = vertex.position.transform(tr)
             box.add(point)
             z = point.z
             low  = z if low.nil?  || z < low
             high = z if high.nil? || z > high
-            point
           end
           next if low.nil?
           horiz << [face, tr, (low + high) / 2.0] if (high - low) <= Z_TOL
-          next unless with_rings
-
-          face_rings = [outer]
-          face.loops.each do |lp|
-            next if lp.outer?
-            face_rings << lp.vertices.map { |vertex| vertex.position.transform(tr) }
-          end
-          rings << face_rings
         end
-        [box, horiz, rings]
+        [box, horiz]
       end
 
       def self.union_bbox(boxes)
@@ -207,494 +210,15 @@ module BACommunity
         [area, :ok, nil]
       end
 
-      # --- способ 2: горизонтальное сечение на отметке -----------------------
-      #
-      # Модель не трогаем: сечение считается аналитически по граням.
-      # Отметка отмеряется от низа группы-этажа (В3), внутренние дворы
-      # вычитаются вложенностью контуров (В4), разрывы до 50 мм смыкаются (В5).
-      # Возвращает [площадь, статус, причина, контуры, незамкнутые куски, огибающая].
-      #
-      # Два прохода. Первый — сшивка отрезков в контуры: работает на солиде,
-      # даёт точную площадь и вычитает дворы. Если доминирующего контура не
-      # вышло (здание собрано из фасадных панелей — каждая даёт свой крошечный
-      # контур, а общего нет), второй проход считает по огибающей всех отрезков.
-      def self.section_area(rings, level)
-        cut  = safe_cut_level(rings, level)
-        segs = []
-        rings.each { |face_rings| segs.concat(plane_segments(face_rings, cut)) }
-        segs = unique_segments(segs)
-
-        return [0.0, :problem, 'на отметке пусто', [], [], []] if segs.empty?
-
-        loops, opens = chain_loops(segs, GAP)
-        footprint    = segments_footprint(segs)
-        biggest      = loops.map { |ring| shoelace(ring).abs }.max || 0.0
-
-        # Контур считается доминирующим, если накрывает хотя бы четверть габарита.
-        if biggest >= footprint * 0.25
-          area = loops_area(loops) * M2_PER_IN2
-          return [0.0, :problem, 'сечение нулевой площади', loops, opens, []] if area <= 0.0
-          return [area, :problem, 'контур замкнулся не весь', loops, opens, []] unless opens.empty?
-          return [area, :ok, nil, loops, [], []]
-        end
-
-        area, outline = envelope_area(segs, cut)
-        return [0.0, :problem, 'контур не замкнулся', loops, opens, outline] if area <= 0.0
-        # Огибающая меньше четверти габарита — значит, сомкнулись только сами
-        # стены, а внутрь заливка прошла: где-то разрыв шире допуска.
-        if area < footprint * M2_PER_IN2 * 0.25
-          return [area, :problem, 'разрыв в контуре больше 50 мм', loops, opens, outline]
-        end
-        [area, :ok, 'по огибающей — дворы не вычтены', [], [], outline]
-      end
-
-      def self.segments_footprint(segs)
-        xs = []
-        ys = []
-        segs.each { |(a, b)| xs << a.x << b.x; ys << a.y << b.y }
-        (xs.max - xs.min) * (ys.max - ys.min)
-      end
-
-      # Площадь по огибающей: отрезки сечения растрируются на сетку, стенки
-      # утолщаются на клетку-две, снаружи пускается заливка. Всё, куда она
-      # не дошла, — здание вместе со стенами. Двор от комнаты на таком разрезе
-      # не отличить, поэтому дворы здесь не вычитаются — об этом сказано
-      # в причине. Возвращает [площадь м², контур огибающей как пары точек].
-      def self.envelope_area(segs, cut)
-        xs = []
-        ys = []
-        segs.each { |(a, b)| xs << a.x << b.x; ys << a.y << b.y }
-        minx = xs.min; maxx = xs.max
-        miny = ys.min; maxy = ys.max
-
-        diag   = Math.sqrt((maxx - minx)**2 + (maxy - miny)**2)
-        # Клетка 50–100 мм: ошибка площади в пределах полупроцента, а растр
-        # остаётся в сотне тысяч клеток даже на стометровом корпусе — это
-        # секунда чистого Ruby на этаж. Оборотная сторона: разрыв здесь
-        # смыкается на клетку-две, то есть 100–200 мм, а не ровно 50 —
-        # огибающая грубее точного пути по контуру, и это её честная цена.
-        cell   = [[diag / 600.0, 50.0.mm].max, 100.0.mm].min
-        radius = [(GAP / (2.0 * cell)).ceil, 1].max
-        margin = radius + 2
-
-        width  = ((maxx - minx) / cell).ceil + 2 * margin + 1
-        height = ((maxy - miny) / cell).ceil + 2 * margin + 1
-        return [0.0, []] if width * height > 2_000_000
-
-        wall  = Array.new(width * height, false)
-        cells = []
-
-        # Стенки: идём вдоль каждого отрезка с шагом в полклетки
-        segs.each do |(a, b)|
-          len   = a.distance(b)
-          steps = [(len / (cell / 2.0)).ceil, 1].max
-          (0..steps).each do |s|
-            t  = s.to_f / steps
-            ix = ((a.x + (b.x - a.x) * t - minx) / cell).floor + margin
-            iy = ((a.y + (b.y - a.y) * t - miny) / cell).floor + margin
-            next if ix < 0 || ix >= width || iy < 0 || iy >= height
-            idx = iy * width + ix
-            next if wall[idx]
-            wall[idx] = true
-            cells << idx
-          end
-        end
-
-        # Утолщаем стенки, чтобы сомкнуть разрывы; работаем только по клеткам
-        # стен, а не по всей сетке
-        thick = wall.dup
-        grow(thick, cells, width, height, radius)
-
-        # Заливка снаружи от угла — туда, где нет стенки. Попутно запоминаем
-        # клетки, упёршиеся в стену: по ним потом вернём стенкам толщину.
-        outside  = Array.new(width * height, false)
-        queue    = [0]
-        frontier = []
-        outside[0] = true
-        head = 0
-        while head < queue.length
-          idx = queue[head]
-          head += 1
-          ix = idx % width
-          iy = idx / width
-          touched = false
-          [[1, 0], [-1, 0], [0, 1], [0, -1]].each do |(dx, dy)|
-            nx = ix + dx
-            ny = iy + dy
-            next if nx < 0 || nx >= width || ny < 0 || ny >= height
-            n = ny * width + nx
-            next if outside[n]
-            if thick[n]
-              touched = true
-              next
-            end
-            outside[n] = true
-            queue << n
-          end
-          frontier << idx if touched
-        end
-
-        grow(outside, frontier, width, height, radius)
-
-        # Границу растра обводим в замкнутые контуры: наружные против часовой,
-        # дыры по часовой — так же, как контуры с солида. Площадь считаем по ним
-        # же, а не по клеткам: тогда то, что выгружается в модель, и то, что
-        # в таблице, — одно и то же.
-        rings = trace_boundary(outside, width, height, cell, minx, miny, margin, cut)
-        area  = loops_area(rings) * M2_PER_IN2
-
-        # Лесенку клеток по диагонали выпрямляем: допуск чуть меньше клетки
-        # убирает ступеньки растра, но оставляет настоящие выступы фасада.
-        smooth = rings.map { |ring| simplify_ring(ring, cell * 0.8) }
-                      .select { |ring| ring.length >= 3 && shoelace(ring).abs >= MIN_LOOP }
-
-        [area, smooth]
-      end
-
-      # Рёбра клеток между «внутри» и «снаружи», направленные так, чтобы
-      # внутренность была слева, сшиваются по концам в контуры.
-      def self.trace_boundary(outside, width, height, cell, minx, miny, margin, z)
-        edges = {}   # ключ начальной точки -> [начало, конец] в клетках
-        add = lambda do |ax, ay, bx, by|
-          (edges[[ax, ay]] ||= []) << [bx, by]
-        end
-
-        (0...height).each do |iy|
-          (0...width).each do |ix|
-            idx = iy * width + ix
-            next if outside[idx]
-            add.call(ix, iy, ix + 1, iy)         if iy == 0 || outside[idx - width]           # низ: +x
-            add.call(ix + 1, iy, ix + 1, iy + 1) if ix == width - 1 || outside[idx + 1]       # право: +y
-            add.call(ix + 1, iy + 1, ix, iy + 1) if iy == height - 1 || outside[idx + width]  # верх: -x
-            add.call(ix, iy + 1, ix, iy)         if ix == 0 || outside[idx - 1]               # лево: -y
-          end
-        end
-
-        rings = []
-        until edges.empty?
-          start = edges.keys.first
-          ring  = [start]
-          cur   = start
-          loop do
-            nexts = edges[cur]
-            break if nexts.nil? || nexts.empty?
-            nxt = nexts.shift
-            edges.delete(cur) if nexts.empty?
-            break if nxt == start
-            ring << nxt
-            cur = nxt
-          end
-          next if ring.length < 3
-          rings << ring.map do |(gx, gy)|
-            Geom::Point3d.new(minx + (gx - margin) * cell, miny + (gy - margin) * cell, z)
-          end
-        end
-        rings
-      end
-
-      # Дуглас — Пекер на замкнутом контуре: режем в двух самых далёких точках
-      # и упрощаем обе половины, чтобы стартовая точка не давала лишний излом.
-      def self.simplify_ring(ring, tolerance)
-        return ring if ring.length <= 4
-        far_i = 0
-        far_j = 0
-        best  = -1.0
-        step  = [ring.length / 200, 1].max   # на больших контурах ищем грубо
-        (0...ring.length).step(step) do |i|
-          (i + 1...ring.length).step(step) do |j|
-            d = ring[i].distance(ring[j])
-            if d > best
-              best  = d
-              far_i = i
-              far_j = j
-            end
-          end
-        end
-        first  = ring[far_i..far_j]
-        second = ring[far_j..-1] + ring[0..far_i]
-        (douglas_peucker(first, tolerance)[0...-1] + douglas_peucker(second, tolerance)[0...-1])
-      end
-
-      def self.douglas_peucker(points, tolerance)
-        return points if points.length < 3
-        a = points.first
-        b = points.last
-        far = 0
-        far_d = -1.0
-        (1...(points.length - 1)).each do |i|
-          d = point_line_distance(points[i], a, b)
-          if d > far_d
-            far_d = d
-            far   = i
-          end
-        end
-        if far_d > tolerance
-          left  = douglas_peucker(points[0..far], tolerance)
-          right = douglas_peucker(points[far..-1], tolerance)
-          left[0...-1] + right
-        else
-          [a, b]
-        end
-      end
-
-      def self.point_line_distance(p, a, b)
-        dx = b.x - a.x
-        dy = b.y - a.y
-        len2 = dx * dx + dy * dy
-        return p.distance(a) if len2 < 1.0e-12
-        t = ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2
-        t = 0.0 if t < 0.0
-        t = 1.0 if t > 1.0
-        px = a.x + t * dx
-        py = a.y + t * dy
-        Math.sqrt((p.x - px)**2 + (p.y - py)**2)
-      end
-
-      # Расширяет помеченные клетки на radius во все стороны — на месте,
-      # только вокруг переданных клеток.
-      def self.grow(mask, seeds, width, height, radius)
-        offsets = []
-        (-radius..radius).each do |dy|
-          (-radius..radius).each { |dx| offsets << [dx, dy] }
-        end
-        seeds.each do |idx|
-          ix = idx % width
-          iy = idx / width
-          offsets.each do |(dx, dy)|
-            nx = ix + dx
-            ny = iy + dy
-            next if nx < 0 || nx >= width || ny < 0 || ny >= height
-            mask[ny * width + nx] = true
-          end
-        end
-        mask
-      end
-
-      # Совпавшие грани (двойные стены, дубли компонентов) дают один и тот же
-      # отрезок дважды, а сшивке контура дубли рвут цепочку. Ключ по округлённым
-      # координатам, чтобы не сравнивать каждый с каждым.
-      def self.unique_segments(segs)
-        seen = {}
-        kept = []
-        segs.each do |(a, b)|
-          ka = [(a.x * 1000).round, (a.y * 1000).round]
-          kb = [(b.x * 1000).round, (b.y * 1000).round]
-          key = (ka <=> kb) <= 0 ? [ka, kb] : [kb, ka]
-          next if seen[key]
-          seen[key] = true
-          kept << [a, b]
-        end
-        kept
-      end
-
-      # Вершина ровно на секущей плоскости даёт вырожденное пересечение,
-      # поэтому отметку слегка сдвигаем, если она попала в вершины.
-      def self.safe_cut_level(rings, cut)
-        eps = 0.02.mm
-        5.times do
-          touching = rings.any? do |face_rings|
-            face_rings.any? { |ring| ring.any? { |point| (point.z - cut).abs < eps } }
-          end
-          return cut unless touching
-          cut += 0.05.mm
-        end
-        cut
-      end
-
-      # Пересечение одной грани (её контуров в мировых координатах)
-      # с горизонтальной плоскостью: набор отрезков.
-      def self.plane_segments(rings, cut)
-        outer = rings.first
-        return [] if outer.nil? || outer.length < 3
-
-        zmin = nil
-        zmax = nil
-        rings.each do |ring|
-          ring.each do |point|
-            z = point.z
-            zmin = z if zmin.nil? || z < zmin
-            zmax = z if zmax.nil? || z > zmax
-          end
-        end
-        return [] if zmax - zmin <= Z_TOL          # горизонтальная грань
-        return [] if cut <= zmin || cut >= zmax    # плоскость мимо грани
-
-        # Нормаль считаем по внешнему контуру, а не по face.normal:
-        # так не зависим от того, как трансформация повлияла бы на нормаль.
-        normal = plane_normal(outer)
-        return [] if normal.nil?
-        dir = normal.cross(Z_AXIS)
-        return [] if dir.length < 1.0e-9
-        dir.normalize!
-
-        points = []
-        rings.each do |ring|
-          count = ring.length
-          count.times do |i|
-            a = ring[i]
-            b = ring[(i + 1) % count]
-            da = a.z - cut
-            db = b.z - cut
-            next if da > 0 && db > 0
-            next if da < 0 && db < 0
-            next if da == db
-            t = da / (da - db)
-            next if t < 0.0 || t > 1.0
-            points << Geom::Point3d.new(a.x + (b.x - a.x) * t,
-                                        a.y + (b.y - a.y) * t,
-                                        cut)
-          end
-        end
-
-        points = dedupe(points, 1.0e-4)
-        return [] if points.length < 2
-
-        points.sort_by! { |p| p.x * dir.x + p.y * dir.y }
-
-        segs  = []
-        index = 0
-        while index + 1 < points.length
-          a = points[index]
-          b = points[index + 1]
-          segs << [a, b] if a.distance(b) > 1.0e-6
-          index += 2
-        end
-        segs
-      end
-
-      def self.plane_normal(ring)
-        origin = ring[0]
-        (1...(ring.length - 1)).each do |i|
-          v1 = ring[i] - origin
-          v2 = ring[i + 1] - origin
-          n  = v1.cross(v2)
-          return n.normalize if n.length > 1.0e-9
-        end
-        nil
-      end
-
-      def self.dedupe(points, tol)
-        kept = []
-        points.each do |point|
-          kept << point unless kept.any? { |other| other.distance(point) <= tol }
-        end
-        kept
-      end
-
-      # Сшивает отрезки в замкнутые контуры, прощая разрывы до gap.
-      # Возвращает [замкнутые контуры, незамкнутые куски] — вторые нужны,
-      # чтобы показать на модели, где именно сечение не сошлось.
-      def self.chain_loops(segs, gap)
-        # Концы отрезков раскладываем по клеткам размером с допуск: всё, что
-        # ближе gap, лежит в соседних 3×3 клетках. Без этого поиск ближайшего
-        # конца был перебором каждого с каждым и на тысяче отрезков занимал секунды.
-        cell  = gap
-        index = {}
-        segs.each_with_index do |(a, b), i|
-          (index[[(a.x / cell).floor, (a.y / cell).floor]] ||= []) << [i, 0]
-          (index[[(b.x / cell).floor, (b.y / cell).floor]] ||= []) << [i, 1]
-        end
-
-        used  = Array.new(segs.length, false)
-        loops = []
-        opens = []
-
-        segs.each_index do |start|
-          next if used[start]
-          used[start] = true
-          poly = [segs[start][0], segs[start][1]]
-
-          loop do
-            tail    = poly.last
-            closing = poly.first.distance(tail)
-
-            best_d    = nil
-            best_i    = nil
-            best_flip = false
-            cx = (tail.x / cell).floor
-            cy = (tail.y / cell).floor
-            (-1..1).each do |dy|
-              (-1..1).each do |dx|
-                bucket = index[[cx + dx, cy + dy]]
-                next if bucket.nil?
-                bucket.each do |(i, endpoint)|
-                  next if used[i]
-                  point = segs[i][endpoint]
-                  d = tail.distance(point)
-                  if best_d.nil? || d < best_d
-                    best_d    = d
-                    best_i    = i
-                    best_flip = (endpoint == 1)
-                  end
-                end
-              end
-            end
-
-            break if poly.length >= 3 && closing <= 1.0e-4
-            break if best_i.nil? || best_d > gap
-
-            used[best_i] = true
-            seg = segs[best_i]
-            poly << (best_flip ? seg[0] : seg[1])
-          end
-
-          if poly.length >= 3 && poly.first.distance(poly.last) <= gap
-            loops << poly
-          else
-            opens << poly
-          end
-        end
-
-        [loops, opens]
-      end
-
-      # Площадь набора контуров: вложенный контур вычитается.
-      # Двор внутри корпуса уходит в минус, отдельно стоящая башня — в плюс.
-      def self.loops_area(loops)
-        polys = loops.map { |lp| [lp, shoelace(lp).abs] }
-                     .reject { |(_, area)| area < MIN_LOOP }
-        total = 0.0
-        polys.each do |(ring, area)|
-          depth = polys.count do |(other, _)|
-            !other.equal?(ring) && point_inside?(ring[0], other)
-          end
-          total += depth.even? ? area : -area
-        end
-        total
-      end
-
-      def self.shoelace(ring)
-        sum   = 0.0
-        count = ring.length
-        count.times do |i|
-          a = ring[i]
-          b = ring[(i + 1) % count]
-          sum += (a.x * b.y) - (b.x * a.y)
-        end
-        sum / 2.0
-      end
-
-      def self.point_inside?(point, ring)
-        inside = false
-        count  = ring.length
-        j      = count - 1
-        count.times do |i|
-          a = ring[i]
-          b = ring[j]
-          if ((a.y > point.y) != (b.y > point.y)) &&
-             (point.x < (b.x - a.x) * (point.y - a.y) / (b.y - a.y) + a.x)
-            inside = !inside
-          end
-          j = i
-        end
-        inside
-      end
-
       # --- точка входа -------------------------------------------------------
 
-      def self.run(method_key, offset_mm, depth)
+      # Выделение может быть внутри открытой на редактирование группы. ТЗ
+      # просит учесть model.edit_transform, но SketchUp в этом режиме САМ отдаёт
+      # трансформации открытого контекста в мировых координатах — умножение на
+      # edit_transform их удваивает (поймано тестом ТЗ-9). Поэтому от единичной.
+      def self.run(method_key, offset_mm, depth, opts = {})
         model   = Sketchup.active_model
-        anchors = model.selection.to_a.select { |e| group_like?(e) }
+        anchors = model.selection.to_a.select { |e| group_like?(e) && !Section::Traversal.own_result?(e) }
         return nil if anchors.empty?
 
         reset_cache
@@ -702,7 +226,8 @@ module BACommunity
         Sketchup.status_text = 'area counter: считаю…'
 
         offset = offset_mm.to_f.mm
-        roots  = anchors.map { |a| build(a, Geom::Transformation.new, depth.to_i, method_key, offset) }
+        origin = Geom::Transformation.new
+        roots  = anchors.map { |a| build(a, origin, depth.to_i, method_key, offset, opts) }
         sort_tree(roots)
 
         Sketchup.status_text = ''

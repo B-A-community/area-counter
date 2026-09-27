@@ -21,8 +21,11 @@ module BACommunity
 
     require File.join(HERE, 'calc.rb')
     require File.join(HERE, 'report.rb')
+    %w[slicer segment_cleaner planar_graph simplifier traversal engine builder].each do |f|
+      require File.join(HERE, 'section', "#{f}.rb")
+    end
     require File.join(HERE, 'highlight.rb')
-    require File.join(HERE, 'export.rb')
+    require File.join(HERE, 'command.rb')
     require File.join(HERE, 'panel.rb')
     require File.join(HERE, 'toolbar.rb')
 

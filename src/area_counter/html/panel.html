@@ -44,7 +44,7 @@
     <button id="btnRun" class="primary">Посчитать</button>
     <button id="btnHi" title="Обвести во вьюпорте посчитанное; при сечении — нарисовать его контур. Esc — выключить">Подсветить</button>
     <button id="btnCopy" title="Таблица выбранного уровня в буфер: вставляется в Google Таблицы и Excel готовыми колонками">Скопировать</button>
-    <button id="btnExport" title="Положить сечения в модель гранями: группа в корне, внутри та же иерархия, грань там, где резало. Отмена — Ctrl+Z">Выгрузить контуры</button>
+    <button id="btnExport" title="Создать в модели плоские грани сечения по внешнему контуру этажей — площадь видна в Entity Info. Отмена — Ctrl+Z">Создать грани</button>
     <label class="opt" title="Показать только этажи, площади которых нельзя верить">
       <input type="checkbox" id="onlyBad"> только проблемные
     </label>
@@ -64,24 +64,31 @@
       площадь, повёрнутые оси группы не мешают.</p>
 
       <h3>Сечение</h3>
-      <p>Горизонтальный разрез на отметке от низа каждого этажа (по умолчанию 1500 мм). Нужен для
-      пирамидального массинга, где верхняя грань меньше нижней. Модель при этом не меняется.</p>
-      <p><b>По контуру</b> — на солиде: отрезки сечения сшиваются в замкнутые контуры, разрывы
-      в фасаде <b>до 50 мм</b> считаются одной стеной, внутренние дворы вычитаются. Это точный путь.</p>
-      <p><b>По огибающей</b> — если замкнутого контура нет, потому что здание собрано из отдельных
-      панелей. Грубее: разрыв смыкается на 100–200 мм, дворы не вычитаются. В статусе этажа так
-      и написано. Если и огибающая дала меньше четверти габарита, этаж проблемный: где-то разрыв
-      шире допуска.</p>
+      <p>Горизонтальный разрез этажа на заданной высоте от его низа (по умолчанию 1000 мм).
+      Площадь — по <b>внешнему контуру</b>, включая всю пластику и окна: край точно повторяет
+      фасад, без срезанных углов и усреднений. Нужен для пирамидального массинга, где верхняя
+      грань меньше нижней. Модель при расчёте не меняется.</p>
+      <p><b>Сварка точек</b> (1 мм) — концы ближе этого считаются одной точкой.
+      <b>Зазоры</b> (20 мм) — щели между кусками фасада уже этого закрываются: пилястра в 5 мм
+      от стены войдёт в контур. Щель шире — нет.</p>
+      <p>Если рез попал ровно на плиту или подоконник, он сам сдвигается на 2 мм вверх. Если на
+      заданной высоте кольцо фасада разорвано (открытый проём без стекла), плагин перебирает
+      высоты и берёт первую, где контур цел, — какую именно, написано в статусе этажа.</p>
+      <p><b>Внутренние дворы</b> по умолчанию не вычитаются — площадь по внешнему контуру.
+      Галочка «вычитать дворы» включает вычет: двором считается внутренний контур, стены которого
+      смотрят внутрь него; колонны и шахты-солиды не вычитаются.</p>
+      <p>Куски, лежащие отдельно от основного контура (больше 0,1 м²), в площадь этажа не входят —
+      о них сказано в статусе, в модели они получают свои грани.</p>
 
       <h3>Статусы</h3>
-      <p>Зелёный «посчитано» — площади можно верить. Оранжевый — посчитано по огибающей, с
-      оговорками выше. Красный — площади верить нельзя, причина в самой таблетке. Галочка
-      «только проблемные» оставляет в таблице красные.</p>
+      <p>Зелёный «посчитано» — площади можно верить. Оранжевый — посчитано, но есть оговорка
+      (сдвинута высота, найдены отдельные фрагменты) — она в самой таблетке. Красный — площади
+      верить нельзя, причина там же. Галочка «только проблемные» оставляет в таблице красные.</p>
 
       <h3>Подсветить</h3>
       <p>Обводит во вьюпорте габариты посчитанного (зелёным) и проблемного (оранжевым). При
-      сечении рисует его контур: сошедшийся зелёным, разошедшиеся куски оранжевым — видно, где
-      именно не сомкнулось и что в расчёт не попало. Esc во вьюпорте — выключить.</p>
+      сечении рисует его контур зелёным, а отрезки, которые не сошлись в контур, — оранжевым:
+      видно, где именно разрыв. Esc во вьюпорте — выключить.</p>
 
       <h3>Клик по строке</h3>
       <p>Наводит камеру на объект и выделяет его. Точку орбиты SketchUp кладёт чуть дальше
@@ -92,12 +99,18 @@
       Таблицы и Excel готовыми колонками. Числа с запятой. «Этажи» — для проверки, «Корпуса» и
       «Комплексы» — рабочие; площади старших уровней есть в тех же строках.</p>
 
-      <h3>Выгрузить контуры</h3>
-      <p>Кладёт контуры сечения в модель: в корне появляется группа «area counter: сечение
-      N мм», внутри — та же иерархия, что в таблице (комплекс → корпус → этаж), в группе этажа —
-      грань сечения ровно там, где резало; двор становится дырой в грани. Огибающая —
-      подгруппой «огибающая», разошедшиеся куски — рёбрами в подгруппе «разошлось». Всё одной операцией: Ctrl+Z убирает целиком.
-      Работает только после счёта способом «Сечение».</p>
+      <h3>Создать грани</h3>
+      <p>Кладёт сечения в модель: в корне — группа «area counter: сечения» на теге
+      «AC_Сечения», внутри та же иерархия, что в таблице (комплекс → корпус → этаж). В группе
+      этажа — одна плоская грань по внешнему контуру на высоте реза; кликните по ней — Entity
+      Info покажет площадь. Повторный запуск заменяет прежнее сечение того же этажа, а не
+      добавляет второе. Исходные этажи не меняются. Одной операцией: Ctrl+Z убирает целиком.
+      Работает после счёта способом «Сечение».</p>
+
+      <h3>Один этаж</h3>
+      <p>То же для одного этажа без окна: меню Расширения → area counter → «Сечение этажа…».
+      Выделите ровно одну группу-этаж — плагин спросит параметры, построит грань и покажет
+      площадь.</p>
     </div>
   </header>
 
@@ -133,9 +146,21 @@
         <label class="opt"><input type="radio" name="method" value="top" checked> Верхняя грань</label>
         <label class="opt"><input type="radio" name="method" value="section"> Сечение</label>
         <div class="field">
-          <span>Отметка от низа этажа, мм</span>
-          <input type="number" id="offset" value="1500" min="0" step="50">
+          <span>Высота реза от низа этажа, мм</span>
+          <input type="number" id="offset" value="1000" min="1" step="50">
         </div>
+        <div class="field">
+          <span>Закрывать зазоры до, мм</span>
+          <input type="number" id="gap" value="20" min="0" step="5">
+        </div>
+        <div class="field">
+          <span>Сварка точек, мм</span>
+          <input type="number" id="snap" value="1" min="0.1" step="0.5">
+        </div>
+        <label class="opt" title="Скрытые объекты и выключенные теги в сечение не попадают">
+          <input type="checkbox" id="hidden" checked> пропускать скрытое</label>
+        <label class="opt" title="Вычитать внутренние дворы и атриумы из площади этажа">
+          <input type="checkbox" id="holes"> вычитать дворы</label>
       </div>
       <div class="group">
         <h3>Копировать</h3>
@@ -150,14 +175,15 @@
   </div>
 
   <footer>
-    Сечение по контуру смыкает разрывы до 50 мм и вычитает дворы; по огибающей — 100–200 мм,
-    дворы не вычитаются. Подробнее — «Инструкция». Площади в м², числа с запятой.
+    Сечение — по внешнему контуру, включая пластику и окна; щели уже заданного зазора
+    закрываются, дворы по умолчанию не вычитаются. Подробнее — «Инструкция». Площади в м²,
+    числа с запятой.
   </footer>
   <div id="toast"></div>
 
 <script src="ba.js"></script>
 <script>
-  var DATA = { tree: [], tables: {}, maxHeight: 0, method: 'top', offset: 1500, depth: 1, totals: null };
+  var DATA = { tree: [], tables: {}, maxHeight: 0, method: 'top', offset: 1000, depth: 1, totals: null };
   var CLOSED = {};
   var LABELS = { floors: 'Этажи', blocks: 'Корпуса', complexes: 'Комплексы' };
 
@@ -169,18 +195,28 @@
     var el = document.querySelector('input[name="' + name + '"][value="' + value + '"]');
     if (el) el.checked = true;
   }
+  function num(id, fallback) {
+    var v = parseFloat(document.getElementById(id).value);
+    return isNaN(v) ? fallback : v;
+  }
   function settings() {
     return {
       depth: parseInt(radio('depth'), 10),
       method: radio('method'),
-      offset: parseFloat(document.getElementById('offset').value) || 1500,
+      offset: num('offset', 1000) > 0 ? num('offset', 1000) : 1000,
+      gap: Math.max(0, num('gap', 20)),
+      snap: num('snap', 1) > 0 ? num('snap', 1) : 1,
+      hidden: document.getElementById('hidden').checked,
+      holes: document.getElementById('holes').checked,
       copy: radio('copy')
     };
   }
   // В реестр SketchUp — компактной строкой без кавычек, JSON там ломается
   function savePrefs() {
     var s = settings();
-    sketchup.save_prefs('depth:' + s.depth + ',method:' + s.method + ',offset:' + s.offset + ',copy:' + s.copy);
+    sketchup.save_prefs('depth:' + s.depth + ',method:' + s.method + ',offset:' + s.offset +
+                        ',snap:' + s.snap + ',gap:' + s.gap + ',hidden:' + (s.hidden ? 1 : 0) +
+                        ',holes:' + (s.holes ? 1 : 0) + ',copy:' + s.copy);
   }
   function applyPrefs(str) {
     if (!str) return;
@@ -190,6 +226,18 @@
       if (kv[0] === 'method') setRadio('method', kv[1]);
       if (kv[0] === 'copy')   setRadio('copy', kv[1]);
       if (kv[0] === 'offset') document.getElementById('offset').value = kv[1];
+      if (kv[0] === 'snap')   document.getElementById('snap').value = kv[1];
+      if (kv[0] === 'gap')    document.getElementById('gap').value = kv[1];
+      if (kv[0] === 'hidden') document.getElementById('hidden').checked = kv[1] === '1';
+      if (kv[0] === 'holes')  document.getElementById('holes').checked = kv[1] === '1';
+    });
+    syncSectionFields();
+  }
+  // Параметры сечения нужны только сечению
+  function syncSectionFields() {
+    var off = radio('method') !== 'section';
+    ['offset', 'gap', 'snap', 'hidden', 'holes'].forEach(function (id) {
+      document.getElementById(id).disabled = off;
     });
   }
 
@@ -200,7 +248,7 @@
   function statusCell(n) {
     if (n.children && n.children.length) return '<span class="dim">—</span>';
     if (n.status === 'problem') return '<span class="pill bad" title="Площади этого этажа верить нельзя">' + BA.esc(n.reason || 'проблема') + '</span>';
-    if (n.reason) return '<span class="pill warn" title="Считалось по огибающей: дворы не вычтены, разрывы до 100–200 мм">' + BA.esc(n.reason) + '</span>';
+    if (n.reason) return '<span class="pill warn" title="Посчитано, но с оговоркой — она в самой таблетке">' + BA.esc(n.reason) + '</span>';
     return '<span class="pill ok">посчитано</span>';
   }
 
@@ -324,6 +372,11 @@
     if (data.method) setRadio('method', data.method);
     if (typeof data.depth === 'number') setRadio('depth', String(data.depth));
     if (data.offset) document.getElementById('offset').value = data.offset;
+    if (data.snap) document.getElementById('snap').value = data.snap;
+    if (typeof data.gap === 'number') document.getElementById('gap').value = data.gap;
+    if (typeof data.hidden === 'boolean') document.getElementById('hidden').checked = data.hidden;
+    if (typeof data.holes === 'boolean') document.getElementById('holes').checked = data.holes;
+    syncSectionFields();
     DATA = data;
     renderStatus();
     refreshCopyButton();
@@ -346,16 +399,16 @@
   function run() {
     var s = settings();
     document.getElementById('status').textContent = 'Считаю…';
-    sketchup.recalc(s.method, s.offset, s.depth);
+    sketchup.recalc(s.method, s.offset, s.depth, s.snap, s.gap, s.hidden, s.holes);
   }
 
   document.getElementById('btnRun').addEventListener('click', run);
   document.getElementById('btnHi').addEventListener('click', function () { sketchup.highlight(); });
   document.getElementById('btnExport').addEventListener('click', function () {
     var t = DATA.totals || { floors: 0 };
-    if (!BA.confirmUndoable(['Положить контуры сечения в модель?',
-                             'Появится группа «area counter: сечение ' + DATA.offset + ' мм» с той же иерархией, ' +
-                             'этажей: ' + t.floors + '.'])) return;
+    if (!BA.confirmUndoable(['Создать в модели грани сечения, этажей: ' + t.floors + '?',
+                             'Появится группа «area counter: сечения» на теге AC_Сечения с той же иерархией. ' +
+                             'Прежние сечения этих этажей будут заменены.'])) return;
     sketchup.export_contours();
   });
   document.getElementById('btnCopy').addEventListener('click', window.acCopy);
@@ -371,18 +424,25 @@
 
   // Настройки: сохраняем сразу; пересчёт — если уже есть результат
   Array.prototype.forEach.call(document.querySelectorAll('input[name="depth"], input[name="method"]'), function (r) {
-    r.addEventListener('change', function () { savePrefs(); if ((DATA.tree || []).length) run(); });
+    r.addEventListener('change', function () { syncSectionFields(); savePrefs(); if ((DATA.tree || []).length) run(); });
   });
-  document.getElementById('offset').addEventListener('change', function () {
-    savePrefs();
-    if ((DATA.tree || []).length && radio('method') === 'section') run();
+  ['offset', 'gap', 'snap', 'hidden', 'holes'].forEach(function (id) {
+    document.getElementById(id).addEventListener('change', function () {
+      savePrefs();
+      if ((DATA.tree || []).length && radio('method') === 'section') run();
+    });
   });
   Array.prototype.forEach.call(document.querySelectorAll('input[name="copy"]'), function (r) {
     r.addEventListener('change', function () { savePrefs(); refreshCopyButton(); });
   });
   document.getElementById('btnReset').addEventListener('click', function () {
     setRadio('depth', '1'); setRadio('method', 'top'); setRadio('copy', 'blocks');
-    document.getElementById('offset').value = 1500;
+    document.getElementById('offset').value = 1000;
+    document.getElementById('gap').value = 20;
+    document.getElementById('snap').value = 1;
+    document.getElementById('hidden').checked = true;
+    document.getElementById('holes').checked = false;
+    syncSectionFields();
     savePrefs(); refreshCopyButton();
     if ((DATA.tree || []).length) run();
   });

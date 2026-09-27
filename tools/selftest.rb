@@ -276,7 +276,8 @@ module BACommunity
         keys = report[:tables].keys
         verdict(out, keys == %w[floors blocks complexes], "T9 таблицы: #{keys.join(', ')}")
         row = report[:tables]['complexes']['tsv'].lines[1].to_s.chomp
-        verdict(out, row.start_with?("Северный\t1000,00\t5\t2"), "T9 строка комплекса: #{row}")
+        # Разделитель дробной части — по языку сборки: 1000,00 в rus, 1000.00 в eng
+        verdict(out, row.start_with?("Северный\t#{AreaCounter.decimal(1000)}\t5\t2"), "T9 строка комплекса: #{row}")
         node = Calc.build(complex, Geom::Transformation.new, 2, 'section', 0, opts)
         check(out, 'T9 комплекс сечением', node.area, 1000.0, 1.0e-6)
       end
@@ -309,7 +310,7 @@ module BACommunity
           attrs = groups.first.attribute_dictionary('area_counter')
           verdict(out, attrs && attrs['floor_pid'] && attrs['cut_mm'] && attrs['area_m2'] && attrs['date'],
                   "B5 атрибуты: #{attrs ? attrs.keys.join(', ') : 'нет'}")
-          verdict(out, groups.first.layer.name == 'AC_Сечения', "B6 тег: #{groups.first.layer.name}")
+          verdict(out, groups.first.layer.name == S::Traversal::TAG, "B6 тег: #{groups.first.layer.name}")
 
           # Повторный запуск заменяет прежнее сечение, а не плодит новое
           S::Builder.build(nodes)

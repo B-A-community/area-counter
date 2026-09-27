@@ -26,51 +26,19 @@ module BACommunity
     # :action — метод модуля Panel (или Command для :floor_section);
     # :stub — инструмент ещё не реализован. На панели инструментов — только
     # кнопки с toolbar: true, в меню — все.
+    # Подписи — из словаря языка сборки (lang.rb): menu_<key>, tip_<key>, st_<key>.
     TOOLBAR_BUTTONS = [
-      {
-        icon:    'area_top',
-        action:  :count_now,
-        toolbar: true,
-        title:   'Посчитать площадь',
-        tooltip: 'Посчитать площадь выделенного',
-        status:  'Считает этажи внутри выделенного и открывает окно с итогами'
-      },
-      {
-        icon:    'area_top',
-        action:  :show,
-        title:   'Окно с таблицей',
-        tooltip: 'Окно с таблицей и итогами',
-        status:  'Открывает окно area counter: таблица по этажам, итоги, настройки способа'
-      },
-      {
-        icon:    'area_top',
-        action:  :highlight_now,
-        title:   'Подсветить посчитанное',
-        tooltip: 'Подсветить посчитанное',
-        status:  'Обводит во вьюпорте этажи, попавшие в расчёт; проблемные — другим цветом'
-      },
-      {
-        icon:    'area_top',
-        action:  :copy_now,
-        title:   'Копировать таблицу',
-        tooltip: 'Копировать таблицу в буфер',
-        status:  'Кладёт таблицу в буфер обмена — вставляется в Google Sheets и Excel как есть'
-      },
-      {
-        icon:    'area_top',
-        action:  :floor_section,
-        title:   'Сечение этажа…',
-        tooltip: 'Сечение этажа',
-        status:  'Выделенный этаж: одна плоская грань по внешнему контуру сечения и её площадь'
-      },
-      {
-        icon:    'area_top',
-        action:  :stub,
-        title:   'Объём выделенного',
-        tooltip: 'Объём выделенного (в разработке)',
-        status:  'Суммарный объём выделенных солидов — инструмент в разработке'
-      }
+      { key: :count,     icon: 'area_top', action: :count_now, toolbar: true },
+      { key: :panel,     icon: 'area_top', action: :show },
+      { key: :highlight, icon: 'area_top', action: :highlight_now },
+      { key: :copy,      icon: 'area_top', action: :copy_now },
+      { key: :section,   icon: 'area_top', action: :floor_section },
+      { key: :volume,    icon: 'area_top', action: :stub }
     ].freeze
+
+    def self.title_of(spec)   AreaCounter.t(:"menu_#{spec[:key]}") end
+    def self.tooltip_of(spec) AreaCounter.t(:"tip_#{spec[:key]}")  end
+    def self.status_of(spec)  AreaCounter.t(:"st_#{spec[:key]}")   end
 
     # По дизайн-коду B&A один и тот же плоский SVG идёт и в small_icon,
     # и в large_icon. Целевая платформа — SketchUp 2024 на Windows; macOS
@@ -81,19 +49,19 @@ module BACommunity
     end
 
     def self.not_implemented(title)
-      Panel.notify("«#{title}» — инструмент ещё не реализован, пункт зарезервирован.")
+      Panel.notify(AreaCounter.t(:stub, title))
     end
 
     def self.run_button(spec)
       case spec[:action]
-      when :stub          then not_implemented(spec[:title])
+      when :stub          then not_implemented(title_of(spec))
       when :floor_section then Command.floor_section
       else Panel.public_send(spec[:action])
       end
     end
 
     def self.build_command(spec)
-      cmd = UI::Command.new(spec[:title]) { run_button(spec) }
+      cmd = UI::Command.new(title_of(spec)) { run_button(spec) }
 
       large_icon, small_icon = icon_paths(spec[:icon])
       # Иконку ставим только если файл на месте: иначе SketchUp ругается,
@@ -101,8 +69,8 @@ module BACommunity
       cmd.large_icon = large_icon if File.exist?(large_icon)
       cmd.small_icon = small_icon if File.exist?(small_icon)
 
-      cmd.tooltip         = spec[:tooltip]
-      cmd.status_bar_text = spec[:status]
+      cmd.tooltip         = tooltip_of(spec)
+      cmd.status_bar_text = status_of(spec)
       cmd
     end
 
@@ -126,8 +94,10 @@ module BACommunity
     def self.create_menu
       menu = UI.menu('Plugins').add_submenu(MENU_NAME)
       TOOLBAR_BUTTONS.each do |spec|
-        menu.add_item(spec[:title]) { run_button(spec) }
+        menu.add_item(title_of(spec)) { run_button(spec) }
       end
+      menu.add_separator
+      menu.add_item(AreaCounter.t(:menu_about)) { About.show }
       menu
     end
 

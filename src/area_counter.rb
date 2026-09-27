@@ -17,18 +17,19 @@
 
 require 'sketchup.rb'
 require 'extensions.rb'
+require File.join(File.dirname(__FILE__), 'area_counter', 'lang.rb')
 
 module BACommunity
   module AreaCounter
 
     EXTENSION_NAME = 'area counter'.freeze
-    VERSION        = '0.9.1'.freeze
+    VERSION        = '1.0'.freeze
 
     loader = SketchupExtension.new(EXTENSION_NAME, File.join('area_counter', 'main.rb'))
     loader.copyright   = 'Copyright 2026 B&A community, Apache License 2.0'
     loader.creator     = 'B&A community — maksarsanjeev, Royalb21'
     loader.version     = VERSION
-    loader.description = 'Математические расчёты по модели: площади, объёмы, длины, спецификации.'
+    loader.description = AreaCounter.t(:ext_description)
     Sketchup.register_extension(loader, true)
 
   end # module AreaCounter

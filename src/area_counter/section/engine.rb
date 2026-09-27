@@ -50,7 +50,7 @@ module BACommunity
         def self.section(entity, world_tr, opts = {})
           o = options(opts)
           data = Traversal.collect(entity, world_tr, o[:ignore_hidden])
-          return empty('внутри нет граней', nil) if data[:bbox].nil?
+          return empty(AreaCounter.t(:no_faces), nil) if data[:bbox].nil?
           compute(data, o)
         end
 
@@ -77,7 +77,7 @@ module BACommunity
           end
 
           first[:status] = :problem
-          first[:warnings].unshift('кольцо разорвано: ни одна высота не прошла проверку') if first[:contour]
+          first[:warnings].unshift(AreaCounter.t(:w_ring_broken)) if first[:contour]
           finish(first, user, nil)
         end
 
@@ -85,9 +85,9 @@ module BACommunity
           used_mm = (result[:height] - result[:bbox][2]) / MM
           result[:cut_mm] = used_mm
           if searched_mm
-            result[:warnings].unshift(format('высота реза %d мм вместо %d', used_mm.round, (user / MM).round))
+            result[:warnings].unshift(AreaCounter.t(:w_cut_other, used_mm.round, (user / MM).round))
           elsif (used_mm - user / MM).abs > 0.01
-            result[:warnings].unshift(format('рез сдвинут с горизонтальной грани на %d мм', used_mm.round))
+            result[:warnings].unshift(AreaCounter.t(:w_cut_shifted, used_mm.round))
           end
           result[:reason] = result[:warnings].empty? ? nil : result[:warnings].join('; ')
           result
@@ -118,7 +118,7 @@ module BACommunity
           raw   = Slicer.slice(faces, h, EPS)
           if raw.empty?
             base[:status] = :problem
-            base[:warnings] << 'на отметке пусто'
+            base[:warnings] << AreaCounter.t(:w_empty)
             return base
           end
 
@@ -130,7 +130,7 @@ module BACommunity
           outers = PlanarGraph.outer_boundaries(PlanarGraph.cycles(xs, ys, clean[:segs]))
           if outers.empty?
             base[:status] = :problem
-            base[:warnings] << 'контур не замкнулся'
+            base[:warnings] << AreaCounter.t(:w_not_closed)
             return base
           end
 
@@ -156,13 +156,12 @@ module BACommunity
           base[:area_m2] = (main_area - holes_area) * M2_PER_IN2
           unless base[:fragments].empty?
             frag = base[:fragments].inject(0.0) { |s, r| s + Simplifier.area(r) } * M2_PER_IN2
-            base[:warnings] << format('найдено отдельных фрагментов: %d (%s м², в площадь этажа не входят)',
-                                      base[:fragments].length, format('%.2f', frag).tr('.', ','))
+            base[:warnings] << AreaCounter.t(:w_fragments, base[:fragments].length, AreaCounter.decimal(frag))
           end
 
           if Simplifier.self_intersecting?(main, snap)
             base[:status] = :problem
-            base[:warnings] << 'контур самопересекается'
+            base[:warnings] << AreaCounter.t(:w_self_cross)
             return base
           end
 

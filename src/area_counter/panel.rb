@@ -143,7 +143,7 @@ module BACommunity
         if @roots.nil?
           @report = nil
           @spent  = nil
-          say('Ничего не выделено. Выделите корпус, комплекс или этажи.')
+          say(AreaCounter.t(:nothing_selected))
           push
           return
         end
@@ -155,20 +155,20 @@ module BACommunity
 
       def self.do_highlight
         if @roots.nil?
-          say('Сначала посчитайте — подсвечивать пока нечего.')
+          say(AreaCounter.t(:hl_count_first))
           push
           return
         end
         Highlight.show(@roots)
-        say('Подсветка включена. Esc во вьюпорте — выключить.')
+        say(AreaCounter.t(:hl_on))
         push
       end
 
       def self.do_export
         if @roots.nil?
-          say('Сначала посчитайте сечением — выгружать пока нечего.')
+          say(AreaCounter.t(:exp_count_first))
         elsif @method != 'section'
-          say('Контуры есть только у сечения: переключите способ и посчитайте заново.')
+          say(AreaCounter.t(:exp_need_section))
         else
           _ok, message = Section::Builder.build(@roots)
           say(message)

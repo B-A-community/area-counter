@@ -113,14 +113,14 @@ module BACommunity
 
       def self.leaf(entity, tr, method_key, opts)
         @counter = (@counter || 0) + 1
-        Sketchup.status_text = "area counter: обработано этажей #{@counter}" if (@counter % 25).zero?
+        Sketchup.status_text = AreaCounter.t(:st_progress, @counter) if (@counter % 25).zero?
 
         return section_leaf(entity, tr, opts) if method_key.to_s == 'section'
 
         faces = collect_faces(inner_entities(entity), tr)
         if faces.empty?
           return Node.new(entity, name_of(entity), [], 0.0, :problem,
-                          'внутри нет граней', nil, nil, [], [], nil)
+                          AreaCounter.t(:no_faces), nil, nil, [], [], nil)
         end
 
         box, horiz = scan(faces)
@@ -199,14 +199,14 @@ module BACommunity
       # и берём ВСЕ грани верхней отметки, а не одну: уступ наверху больше
       # не съедает часть площади.
       def self.top_area(horiz)
-        return [0.0, :problem, 'нет горизонтальных граней'] if horiz.empty?
+        return [0.0, :problem, AreaCounter.t(:no_horizontal)] if horiz.empty?
 
         top    = horiz.map { |item| item[2] }.max
         on_top = horiz.select { |item| (top - item[2]).abs <= Z_TOL }
         in2    = on_top.inject(0.0) { |sum, item| sum + item[0].area(item[1]) }
         area   = in2 * M2_PER_IN2
 
-        return [0.0, :problem, 'верхняя грань нулевой площади'] if area <= 0.0
+        return [0.0, :problem, AreaCounter.t(:zero_top)] if area <= 0.0
         [area, :ok, nil]
       end
 
@@ -223,7 +223,7 @@ module BACommunity
 
         reset_cache
         @counter = 0
-        Sketchup.status_text = 'area counter: считаю…'
+        Sketchup.status_text = AreaCounter.t(:st_counting)
 
         offset = offset_mm.to_f.mm
         origin = Geom::Transformation.new

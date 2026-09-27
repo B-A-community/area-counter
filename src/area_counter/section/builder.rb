@@ -36,29 +36,29 @@ module BACommunity
         def self.build(roots)
           model  = Sketchup.active_model
           leaves = Calc.leaves(roots).select { |leaf| leaf.section && leaf.section[:contour] }
-          return [false, 'Нечего выгружать: посчитайте способом «Сечение».'] if leaves.empty?
+          return [false, AreaCounter.t(:exp_nothing)] if leaves.empty?
 
           notes = []
-          model.start_operation('Сечение этажа', true)
+          model.start_operation(AreaCounter.t(:op_section), true)
           begin
             tag = model.layers[TAG] || model.layers.add(TAG)
             removed = remove_previous(model, leaves.map { |leaf| pid_of(leaf.entity) }.compact)
 
             root = model.entities.add_group
-            root.name  = 'area counter: сечения'
+            root.name  = AreaCounter.t(:root_name)
             root.layer = tag
             root.set_attribute(DICT, 'role', 'container')
             roots.each { |node| build_node(root.entities, node, tag, notes) }
             erase_if_empty(root)
 
             model.commit_operation
-            msg = format('Создано сечений: %d%s.', leaves.length,
-                         removed > 0 ? ", прежних заменено: #{removed}" : '')
+            msg = AreaCounter.t(:exp_done, leaves.length,
+                                 removed > 0 ? AreaCounter.t(:exp_replaced, removed) : '')
             msg += ' ' + notes.join(' ') unless notes.empty?
-            [true, msg + ' Отмена — Ctrl+Z.']
+            [true, msg + AreaCounter.t(:exp_undo)]
           rescue StandardError => e
             model.abort_operation
-            [false, "Не удалось создать сечение: #{e.message}"]
+            [false, AreaCounter.t(:exp_failed, e.message)]
           end
         end
 
@@ -87,11 +87,11 @@ module BACommunity
 
           group = entities.add_group
           group.layer = tag
-          group.name  = format('%s — сечение %d мм, %s м²', name, r[:cut_mm].round, Report.number(r[:area_m2]))
+          group.name  = AreaCounter.t(:floor_group, name, r[:cut_mm].round, Report.number(r[:area_m2]))
 
           face = add_face(group.entities, r[:contour], z)
           if face.nil?
-            notes << "«#{name}»: грань не построилась (вырожденный контур), оставлены рёбра."
+            notes << AreaCounter.t(:face_failed, name)
           end
           r[:holes].each do |hole|
             hole_face = add_face(group.entities, hole, z)
@@ -104,7 +104,7 @@ module BACommunity
             expected = r[:area_m2]
             got = face.area * Engine::M2_PER_IN2
             if expected > 0 && ((got - expected) / expected).abs > 1.0e-4
-              notes << format('«%s»: площадь грани %.3f м² расходится с расчётом %.3f м².', name, got, expected)
+              notes << AreaCounter.t(:face_mismatch, name, AreaCounter.decimal(got, 3), AreaCounter.decimal(expected, 3))
             end
           end
 

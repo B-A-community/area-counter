@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>area counter 1.0 — quick guide</title>
+<!-- Styled like the RALNCS guide (B-A-community/ralncs, docs/guide-eng.html) -->
+<style>
+  @page { size: A4; margin: 14mm 16mm; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font: 10.5pt/1.42 "Segoe UI", system-ui, sans-serif; color: #1c1c1c; }
+  header { display: flex; align-items: center; gap: 14px; border-bottom: 1px solid #ddd; padding-bottom: 10px; margin-bottom: 12px; }
+  header svg { width: 44px; height: 44px; flex: none; }
+  h1 { font-size: 20pt; font-weight: 700; line-height: 1.1; }
+  .sub { color: #666; font-size: 10pt; margin-top: 2px; }
+  h2 { font-size: 12pt; font-weight: 700; margin: 12px 0 5px; display: flex; align-items: center; gap: 8px; }
+  h2 .n { display: inline-block; width: 22px; height: 22px; border-radius: 11px; background: #2b6cb0; color: #fff; font-size: 10pt; text-align: center; line-height: 22px; }
+  p, li { margin-bottom: 4px; }
+  ol, ul { padding-left: 20px; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 0 22px; }
+  kbd, .btn { font: inherit; font-size: 9pt; padding: 1px 7px; border: 1px solid #bbb; border-radius: 5px; background: #fff; white-space: nowrap; }
+  .btn.primary { background: #2b6cb0; border-color: #2b6cb0; color: #fff; }
+  .pill { display: inline-block; padding: 0 7px; border-radius: 10px; font-size: 8.5pt; color: #fff; }
+  .ok { background: #2f855a; } .warn { background: #dd8a20; } .bad { background: #c53030; }
+  .note { background: #f5f5f4; border: 1px solid #ddd; border-radius: 8px; padding: 7px 12px; margin-top: 8px; font-size: 9.5pt; }
+  .note b { color: #c53030; }
+  .note .path { font-weight: 600; }
+  footer { margin-top: 12px; padding-top: 8px; border-top: 1px solid #ddd; color: #888; font-size: 9pt; display: flex; justify-content: space-between; }
+</style>
+</head>
+<body>
+<header>
+  <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+    <path d="M4.5 3.5h10v5h5v8h-15z" fill="#2B6CB0" stroke="#3B3B38" stroke-width="1.6" stroke-linejoin="round"/>
+    <path d="M4.5 20.5h15" stroke="#3B3B38" stroke-width="1.6" stroke-linecap="round"/>
+    <path d="M4.5 19v3M19.5 19v3" stroke="#3B3B38" stroke-width="1.6" stroke-linecap="round"/>
+  </svg>
+  <div>
+    <h1>area counter 1.0 — quick guide</h1>
+    <div class="sub">SketchUp 2024 / 2025 / 2026 extension: floor, building and complex areas by top face or by section, a table via the clipboard, section faces in the model</div>
+  </div>
+</header>
+
+<h2><span class="n">1</span>Install</h2>
+<p>SketchUp → <b>Window → Extension Manager → Install Extension</b> → pick <code>area-counter-1.0-eng.rbz</code> → restart SketchUp.
+A “Calculate area” button appears on the “area counter” toolbar, plus the <b>Extensions → area counter</b> menu. Remove any earlier test build before installing.</p>
+
+<div class="two">
+<div>
+<h2><span class="n">2</span>Calculate</h2>
+<ol>
+  <li>Select a building, a complex or the floors themselves — groups or components.</li>
+  <li>Toolbar button or <b>Extensions → area counter → Calculate area</b> — the results window opens.</li>
+  <li>On the right, <b>What is selected</b>: <i>Floors</i> — the floors themselves, <i>Building</i> — floors one level down, <i>Complex</i> — two levels down. Each floor counts as a whole, with everything nested in it.</li>
+  <li><b>Method</b>: <i>Top face</i> — fast, by the horizontal faces at the top elevation; <i>Section</i> — a horizontal cut at a height above the floor bottom (1000 mm by default), area by the <b>outer contour</b> including facade relief and windows.</li>
+</ol>
+<p>Section settings: <b>gaps</b> up to 20 mm between facade pieces are closed, <b>point weld</b> 1 mm, hidden objects are skipped, inner courtyards are <b>not subtracted</b> by default (“subtract courtyards” box). If the cut lands on a slab it moves 2 mm up; if a doorway breaks the facade ring, the plugin picks another height and writes it in the status.</p>
+
+<h2><span class="n">3</span>Table and statuses</h2>
+<p>A complex → building → floor tree with areas in m². Click a row to zoom to the object.
+<span class="pill ok">calculated</span> — can be trusted; <span class="pill warn">caveat</span> — calculated, but the height moved or separate pieces were found; <span class="pill bad">problem</span> — cannot be trusted, the reason is in the pill.
+<span class="btn">problems only</span> leaves the red ones, <span class="btn">Highlight</span> outlines the results in the viewport (<kbd>Esc</kbd> to turn off).</p>
+</div>
+
+<div>
+<h2><span class="n">4</span>Copy to a spreadsheet</h2>
+<p>On the right, <b>Copy</b>: <i>Floors</i> (for checking), <i>Buildings</i> or <i>Complexes</i>. The <span class="btn">Copy</span> button puts the table on the clipboard — press <kbd>Ctrl+V</kbd> in Google Sheets / Excel: columns land by themselves, numbers use a decimal point, upper-level areas are in the same rows.</p>
+
+<h2><span class="n">5</span>Output sections</h2>
+<p>After calculating with the “Section” method, <span class="btn">Output sections</span> puts a group <b>“area counter: sections”</b> on the <b>AC_Sections</b> tag into the model, with the same hierarchy. Each floor group holds one flat face along the outer contour at the cut height: click it and <b>Entity Info</b> shows the area. Running again replaces the floor’s previous section. Source floors are not changed; undo — <kbd>Ctrl+Z</kbd>.</p>
+
+<h2><span class="n">6</span>A single floor</h2>
+<p>Select one floor group → <b>Extensions → area counter → Floor section…</b> → set the cut height, gaps and courtyards → OK. The plugin builds the face and shows the area in the window.</p>
+
+<p class="note"><b>Note.</b> Separate section pieces (over 0.1 m²) are not included in the floor area — the status mentions them. Window settings are remembered; <span class="btn">Reset</span> restores the defaults. Version and authors — <span class="path">Extensions → area counter → About…</span></p>
+</div>
+</div>
+
+<footer>
+  <span>Authors: Ruslan Tkachenko and Maksar Sanjeev · Apache 2.0 · B&amp;A community</span>
+  <span>github.com/B-A-community/area-counter</span>
+</footer>
+</body>
+</html>

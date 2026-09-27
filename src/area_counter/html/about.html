@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title data-t="about_title">О плагине area counter</title>
+<!-- Окно «О плагине» — один в один с RALNCS (B-A-community/ralncs, src/ralncs/html/about.html) -->
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font: 13px/1.45 "Segoe UI", system-ui, sans-serif;
+    color: #1c1c1c; background: #f5f5f4;
+    display: flex; flex-direction: column; height: 100vh;
+  }
+  main { flex: 1; padding: 18px 20px 12px; display: flex; gap: 16px; align-items: flex-start; }
+  .logo { width: 56px; height: 56px; flex: none; }
+  h1 { font-size: 18px; font-weight: 700; line-height: 1.2; }
+  .ver { color: #888; font-size: 11px; margin-top: 2px; }
+  p { margin-top: 10px; }
+  .authors { margin-top: 12px; }
+  .authors b { display: block; color: #666; font-size: 11px; text-transform: uppercase; letter-spacing: .03em; font-weight: 600; margin-bottom: 3px; }
+  a { color: #2b6cb0; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .repo { margin-top: 12px; display: flex; align-items: center; gap: 6px; }
+  .repo svg { width: 16px; height: 16px; flex: none; }
+  footer {
+    padding: 10px 20px; background: #fff; border-top: 1px solid #ddd;
+    display: flex; align-items: center; gap: 10px;
+  }
+  footer .lic { color: #888; font-size: 11px; flex: 1; }
+  button {
+    font: inherit; padding: 6px 14px; border: 1px solid #bbb; border-radius: 6px;
+    background: #fff; cursor: pointer;
+  }
+  button:hover { background: #f0f0ef; }
+</style>
+</head>
+<body>
+  <main>
+    <!-- Иконка тулбара icons/area_top.svg -->
+    <svg class="logo" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+      <path d="M4.5 3.5h10v5h5v8h-15z" fill="#2B6CB0" stroke="#3B3B38" stroke-width="1.6" stroke-linejoin="round"/>
+      <path d="M4.5 20.5h15" stroke="#3B3B38" stroke-width="1.6" stroke-linecap="round"/>
+      <path d="M4.5 19v3M19.5 19v3" stroke="#3B3B38" stroke-width="1.6" stroke-linecap="round"/>
+    </svg>
+    <div>
+      <h1>area counter</h1>
+      <div class="ver" id="ver"></div>
+      <p data-t="about_desc">Площади этажей, корпусов и комплексов по верхней грани или по сечению, таблица в буфер для Google Таблиц / Excel и грани сечений в модели.</p>
+      <div class="authors">
+        <b data-t="about_authors">Авторы</b>
+        <span data-t="about_names">Ruslan Tkachenko и Maksar Sanjeev</span>
+      </div>
+      <div class="repo">
+        <svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><path fill="#3B3B38" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+        <a href="#" id="repo">github.com/B-A-community/area-counter</a>
+      </div>
+    </div>
+  </main>
+  <footer>
+    <span class="lic" data-t="about_lic">Apache 2.0 · B&amp;A community</span>
+    <button id="btnClose" data-t="btn_close">Закрыть</button>
+  </footer>
+<script src="i18n.js"></script>
+<script>
+  applyLang();
+  var REPO = 'https://github.com/B-A-community/area-counter';
+  function init(d) { document.getElementById('ver').textContent = d.version ? t('about_ver') + d.version : ''; }
+  window.init = init;
+  document.getElementById('repo').addEventListener('click', function (e) { e.preventDefault(); sketchup.open_url(REPO); });
+  document.getElementById('btnClose').addEventListener('click', function () { sketchup.close(); });
+  window.addEventListener('DOMContentLoaded', function () { sketchup.ready(); });
+</script>
+</body>
+</html>

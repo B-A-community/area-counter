@@ -28,29 +28,28 @@ module BACommunity
     # ни с чем не конфликтует, в отличие от CSV.
     module Report
 
-      NO_NAME = 'Без имени'.freeze
-
-      LEVEL = { 0 => 'Этаж',  1 => 'Корпус',  2 => 'Комплекс'  }.freeze
-      GEN   = { 0 => 'этажа', 1 => 'корпуса', 2 => 'комплекса' }.freeze  # площадь чего
-      LOC   = { 0 => 'этаже', 1 => 'корпусе', 2 => 'комплексе' }.freeze  # этажей в чём
-      KEY   = { 0 => 'floors', 1 => 'blocks', 2 => 'complexes' }.freeze
-      PLURAL = { 0 => 'Этажи', 1 => 'Корпуса', 2 => 'Комплексы' }.freeze
+      # Подписи уровней — из словаря языка (lang.rb); ключи таблиц — общие
+      KEY = { 0 => 'floors', 1 => 'blocks', 2 => 'complexes' }.freeze
 
       Entry = Struct.new(:node, :id, :height, :parent, :floors)
 
-      def self.level_name(h) LEVEL[h] || "Уровень #{h}"  end
-      def self.gen(h)        GEN[h]   || "уровня #{h}"   end
-      def self.loc(h)        LOC[h]   || "уровне #{h}"   end
-      def self.key(h)        KEY[h]   || "level#{h}"     end
-      def self.plural(h)     PLURAL[h] || "Уровень #{h}" end
+      def self.word(list, fallback, h)
+        AreaCounter.t(list)[h] || AreaCounter.t(fallback, h)
+      end
+
+      def self.level_name(h) word(:levels,  :level_n, h) end
+      def self.gen(h)        word(:gen,     :gen_n,   h) end
+      def self.loc(h)        word(:loc,     :loc_n,   h) end
+      def self.plural(h)     word(:plurals, :level_n, h) end
+      def self.key(h)        KEY[h] || "level#{h}"      end
 
       def self.display_name(node)
         name = node.name.to_s.strip
-        name.empty? ? NO_NAME : name
+        name.empty? ? AreaCounter.t(:no_name) : name
       end
 
       def self.number(value)
-        format('%.2f', value.to_f).tr('.', ',')
+        AreaCounter.decimal(value)
       end
 
       # --- сборка ------------------------------------------------------------
@@ -119,12 +118,12 @@ module BACommunity
 
       def self.table_for(h, max_h)
         columns = max_h.downto(h).map { |lvl| level_name(lvl) }
-        columns << "Площадь #{gen(h)}, м²"
-        columns << "Этажей в #{loc(h)}"   if h >= 1
-        columns << "Корпусов в #{loc(h)}" if h >= 2
+        columns << AreaCounter.t(:col_area, gen(h))
+        columns << AreaCounter.t(:col_floors, loc(h)) if h >= 1
+        columns << AreaCounter.t(:col_blocks, loc(h)) if h >= 2
         (h + 1).upto(max_h) do |a|
-          columns << "Этажей в #{loc(a)}"
-          columns << "Площадь #{gen(a)}, м²"
+          columns << AreaCounter.t(:col_floors, loc(a))
+          columns << AreaCounter.t(:col_area, gen(a))
         end
 
         rows = @entries.select { |e| e.height == h }.map { |e| cells_for(e, h, max_h) }

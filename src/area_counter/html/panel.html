@@ -37,84 +37,38 @@
   #help h3:first-child { margin-top: 0; }
   #help p { margin: 0 0 6px; color: #1c1c1c; }
   #help b { font-weight: 600; }
+
+  /* Подтверждение внутри окна — в стиле .popover из ba.css. Системный confirm()
+     SketchUp 2025 в HtmlDialog не показывает и сразу отвечает «нет». */
+  #ask { position: fixed; inset: 0; z-index: 20; display: none; align-items: center; justify-content: center;
+         background: rgba(28, 28, 28, .18); }
+  #ask.open { display: flex; }
+  #ask .box { background: #fff; border: 1px solid #ccc; border-radius: 8px; padding: 14px 16px 12px;
+              width: 420px; max-width: calc(100vw - 28px); }
+  #ask p { margin: 0 0 6px; }
+  #ask p.dim { color: #666; }
+  #ask .foot { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; padding-top: 10px;
+               border-top: 1px solid #eee; }
 </style>
 </head>
 <body>
   <header>
-    <button id="btnRun" class="primary">Посчитать</button>
-    <button id="btnHi" title="Обвести во вьюпорте посчитанное; при сечении — нарисовать его контур. Esc — выключить">Подсветить</button>
-    <button id="btnCopy" title="Таблица выбранного уровня в буфер: вставляется в Google Таблицы и Excel готовыми колонками">Скопировать</button>
-    <button id="btnExport" title="Создать в модели плоские грани сечения по внешнему контуру этажей — площадь видна в Entity Info. Отмена — Ctrl+Z">Вывод сечений</button>
-    <label class="opt" title="Показать только этажи, площади которых нельзя верить">
-      <input type="checkbox" id="onlyBad"> только проблемные
+    <button id="btnRun" class="primary" data-t="btn_run">Посчитать</button>
+    <button id="btnHi" data-t="btn_hi" data-t-title="hi_title">Подсветить</button>
+    <button id="btnCopy" data-t="btn_copy" data-t-title="copy_title">Скопировать</button>
+    <button id="btnExport" data-t="btn_export" data-t-title="export_title">Вывод сечений</button>
+    <label class="opt" data-t-title="only_bad_title">
+      <input type="checkbox" id="onlyBad"> <span data-t="only_bad">только проблемные</span>
     </label>
     <span class="spacer"></span>
-    <button id="btnFold" title="Свернуть или развернуть все корпуса и комплексы">Свернуть всё</button>
-    <button id="btnHelp">Инструкция</button>
+    <button id="btnFold" data-t="btn_fold" data-t-title="fold_title">Свернуть всё</button>
+    <button id="btnHelp" data-t="btn_help">Инструкция</button>
 
-    <div id="help" class="popover">
-      <h3>Что выделено</h3>
-      <p>На сколько уровней вниз от выделенного лежат этажи. Выделили сами этажи — «Этажи»,
-      выделили корпус — «Корпус», комплекс — «Комплекс». Плагин не знает слов «этаж» и «корпус»,
-      для него это число уровней. Каждый этаж считается целиком, со всем, что внутри него вложено.
-      Если вложенности меньше заявленной, выделенное само становится этажом.</p>
-
-      <h3>Верхняя грань</h3>
-      <p>Быстрый счёт по всем горизонтальным граням верхней отметки. Уступ наверху не съедает
-      площадь, повёрнутые оси группы не мешают.</p>
-
-      <h3>Сечение</h3>
-      <p>Горизонтальный разрез этажа на заданной высоте от его низа (по умолчанию 1000 мм).
-      Площадь — по <b>внешнему контуру</b>, включая всю пластику и окна: край точно повторяет
-      фасад, без срезанных углов и усреднений. Нужен для пирамидального массинга, где верхняя
-      грань меньше нижней. Модель при расчёте не меняется.</p>
-      <p><b>Сварка точек</b> (1 мм) — концы ближе этого считаются одной точкой.
-      <b>Зазоры</b> (20 мм) — щели между кусками фасада уже этого закрываются: пилястра в 5 мм
-      от стены войдёт в контур. Щель шире — нет.</p>
-      <p>Если рез попал ровно на плиту или подоконник, он сам сдвигается на 2 мм вверх. Если на
-      заданной высоте кольцо фасада разорвано (открытый проём без стекла), плагин перебирает
-      высоты и берёт первую, где контур цел, — какую именно, написано в статусе этажа.</p>
-      <p><b>Внутренние дворы</b> по умолчанию не вычитаются — площадь по внешнему контуру.
-      Галочка «вычитать дворы» включает вычет: двором считается внутренний контур, стены которого
-      смотрят внутрь него; колонны и шахты-солиды не вычитаются.</p>
-      <p>Куски, лежащие отдельно от основного контура (больше 0,1 м²), в площадь этажа не входят —
-      о них сказано в статусе, в модели они получают свои грани.</p>
-
-      <h3>Статусы</h3>
-      <p>Зелёный «посчитано» — площади можно верить. Оранжевый — посчитано, но есть оговорка
-      (сдвинута высота, найдены отдельные фрагменты) — она в самой таблетке. Красный — площади
-      верить нельзя, причина там же. Галочка «только проблемные» оставляет в таблице красные.</p>
-
-      <h3>Подсветить</h3>
-      <p>Обводит во вьюпорте габариты посчитанного (зелёным) и проблемного (оранжевым). При
-      сечении рисует его контур зелёным, а отрезки, которые не сошлись в контур, — оранжевым:
-      видно, где именно разрыв. Esc во вьюпорте — выключить.</p>
-
-      <h3>Клик по строке</h3>
-      <p>Наводит камеру на объект и выделяет его. Точку орбиты SketchUp кладёт чуть дальше
-      объекта — после зума орбита крутится не ровно вокруг него.</p>
-
-      <h3>Скопировать</h3>
-      <p>Таблица выбранного уровня уходит в буфер сразу текстом и HTML — вставляется в Google
-      Таблицы и Excel готовыми колонками. Числа с запятой. «Этажи» — для проверки, «Корпуса» и
-      «Комплексы» — рабочие; площади старших уровней есть в тех же строках.</p>
-
-      <h3>Вывод сечений</h3>
-      <p>Кладёт сечения в модель: в корне — группа «area counter: сечения» на теге
-      «AC_Сечения», внутри та же иерархия, что в таблице (комплекс → корпус → этаж). В группе
-      этажа — одна плоская грань по внешнему контуру на высоте реза; кликните по ней — Entity
-      Info покажет площадь. Повторный запуск заменяет прежнее сечение того же этажа, а не
-      добавляет второе. Исходные этажи не меняются. Одной операцией: Ctrl+Z убирает целиком.
-      Работает после счёта способом «Сечение».</p>
-
-      <h3>Один этаж</h3>
-      <p>То же для одного этажа без окна: меню Расширения → area counter → «Сечение этажа…».
-      Выделите ровно одну группу-этаж — плагин спросит параметры, построит грань и покажет
-      площадь.</p>
-    </div>
+    <!-- Текст инструкции — в i18n.js (help_html), на языке сборки -->
+    <div id="help" class="popover" data-t-html="help_html"></div>
   </header>
 
-  <div id="status">Выделите корпус, комплекс или сами этажи и нажмите «Посчитать».</div>
+  <div id="status" data-t="status_hint">Выделите корпус, комплекс или сами этажи и нажмите «Посчитать».</div>
 
   <div class="main">
     <div id="wrap">
@@ -122,70 +76,79 @@
         <thead>
           <!-- без class="col": это одноуровневая шапка, tr.col в ba.css прилипает на 24px ниже -->
           <tr>
-            <th>Объект</th>
-            <th>Уровень</th>
-            <th class="num">Этажей</th>
-            <th class="num">Площадь, м²</th>
-            <th>Статус</th>
+            <th data-t="th_object">Объект</th>
+            <th data-t="th_level">Уровень</th>
+            <th class="num" data-t="th_floors">Этажей</th>
+            <th class="num" data-t="th_area">Площадь, м²</th>
+            <th data-t="th_status">Статус</th>
           </tr>
         </thead>
         <tbody id="rows"></tbody>
       </table>
-      <div id="empty">Ничего ещё не посчитано.</div>
+      <div id="empty" data-t="empty">Ничего ещё не посчитано.</div>
     </div>
 
     <aside id="side">
       <div class="group">
-        <h3>Что выделено</h3>
-        <label class="opt"><input type="radio" name="depth" value="0"> Этажи</label>
-        <label class="opt"><input type="radio" name="depth" value="1" checked> Корпус</label>
-        <label class="opt"><input type="radio" name="depth" value="2"> Комплекс</label>
+        <h3 data-t="side_selected">Что выделено</h3>
+        <label class="opt"><input type="radio" name="depth" value="0"> <span data-t="lvl_floors">Этажи</span></label>
+        <label class="opt"><input type="radio" name="depth" value="1" checked> <span data-t="lvl_block">Корпус</span></label>
+        <label class="opt"><input type="radio" name="depth" value="2"> <span data-t="lvl_complex">Комплекс</span></label>
       </div>
       <div class="group">
-        <h3>Способ</h3>
-        <label class="opt"><input type="radio" name="method" value="top" checked> Верхняя грань</label>
-        <label class="opt"><input type="radio" name="method" value="section"> Сечение</label>
+        <h3 data-t="side_method">Способ</h3>
+        <label class="opt"><input type="radio" name="method" value="top" checked> <span data-t="m_top">Верхняя грань</span></label>
+        <label class="opt"><input type="radio" name="method" value="section"> <span data-t="m_section">Сечение</span></label>
         <div class="field">
-          <span>Высота реза от низа этажа, мм</span>
+          <span data-t="f_offset">Высота реза от низа этажа, мм</span>
           <input type="number" id="offset" value="1000" min="1" step="50">
         </div>
         <div class="field">
-          <span>Закрывать зазоры до, мм</span>
+          <span data-t="f_gap">Закрывать зазоры до, мм</span>
           <input type="number" id="gap" value="20" min="0" step="5">
         </div>
         <div class="field">
-          <span>Сварка точек, мм</span>
+          <span data-t="f_snap">Сварка точек, мм</span>
           <input type="number" id="snap" value="1" min="0.1" step="0.5">
         </div>
-        <label class="opt" title="Скрытые объекты и выключенные теги в сечение не попадают">
-          <input type="checkbox" id="hidden" checked> пропускать скрытое</label>
-        <label class="opt" title="Вычитать внутренние дворы и атриумы из площади этажа">
-          <input type="checkbox" id="holes"> вычитать дворы</label>
+        <label class="opt" data-t-title="hidden_title">
+          <input type="checkbox" id="hidden" checked> <span data-t="hidden_lbl">пропускать скрытое</span></label>
+        <label class="opt" data-t-title="holes_title">
+          <input type="checkbox" id="holes"> <span data-t="holes_lbl">вычитать дворы</span></label>
       </div>
       <div class="group">
-        <h3>Копировать</h3>
-        <label class="opt"><input type="radio" name="copy" value="floors"> Этажи — для проверки</label>
-        <label class="opt"><input type="radio" name="copy" value="blocks" checked> Корпуса</label>
-        <label class="opt"><input type="radio" name="copy" value="complexes"> Комплексы</label>
+        <h3 data-t="side_copy">Копировать</h3>
+        <label class="opt"><input type="radio" name="copy" value="floors"> <span data-t="c_floors">Этажи — для проверки</span></label>
+        <label class="opt"><input type="radio" name="copy" value="blocks" checked> <span data-t="c_blocks">Корпуса</span></label>
+        <label class="opt"><input type="radio" name="copy" value="complexes"> <span data-t="c_complexes">Комплексы</span></label>
       </div>
-      <div class="hint">Этажи лежат на выбранной глубине под выделенным и считаются целиком.
+      <div class="hint" data-t="side_hint">Этажи лежат на выбранной глубине под выделенным и считаются целиком.
       Настройки запоминаются.</div>
-      <div class="side-foot"><button id="btnReset">Сбросить</button></div>
+      <div class="side-foot"><button id="btnReset" data-t="btn_reset">Сбросить</button></div>
     </aside>
   </div>
 
-  <footer>
+  <footer data-t="footer">
     Сечение — по внешнему контуру, включая пластику и окна; щели уже заданного зазора
     закрываются, дворы по умолчанию не вычитаются. Подробнее — «Инструкция». Площади в м²,
     числа с запятой.
   </footer>
   <div id="toast"></div>
+  <div id="ask"><div class="box">
+    <div id="askText"></div>
+    <div class="foot">
+      <button id="askNo" data-t="btn_cancel">Отмена</button>
+      <button id="askYes" class="primary" data-t="btn_create">Создать</button>
+    </div>
+  </div></div>
 
 <script src="ba.js"></script>
+<script src="i18n.js"></script>
 <script>
+  applyLang();
   var DATA = { tree: [], tables: {}, maxHeight: 0, method: 'top', offset: 1000, depth: 1, totals: null };
   var CLOSED = {};
-  var LABELS = { floors: 'Этажи', blocks: 'Корпуса', complexes: 'Комплексы' };
+  var LABELS = { floors: t('pl_floors'), blocks: t('pl_blocks'), complexes: t('pl_complexes') };
 
   function radio(name) {
     var el = document.querySelector('input[name="' + name + '"]:checked');
@@ -247,9 +210,9 @@
 
   function statusCell(n) {
     if (n.children && n.children.length) return '<span class="dim">—</span>';
-    if (n.status === 'problem') return '<span class="pill bad" title="Площади этого этажа верить нельзя">' + BA.esc(n.reason || 'проблема') + '</span>';
-    if (n.reason) return '<span class="pill warn" title="Посчитано, но с оговоркой — она в самой таблетке">' + BA.esc(n.reason) + '</span>';
-    return '<span class="pill ok">посчитано</span>';
+    if (n.status === 'problem') return '<span class="pill bad" title="' + BA.esc(t('pill_bad_title')) + '">' + BA.esc(n.reason || t('pill_problem')) + '</span>';
+    if (n.reason) return '<span class="pill warn" title="' + BA.esc(t('pill_warn_title')) + '">' + BA.esc(n.reason) + '</span>';
+    return '<span class="pill ok">' + BA.esc(t('pill_ok')) + '</span>';
   }
 
   function renderNode(n, parentKey, i, indent, hiddenByParent, out) {
@@ -259,7 +222,7 @@
     var cls = (branch ? 'branch h' + n.height : 'leaf') + (closed ? ' closed' : '');
     out.push('<tr class="' + cls + '" data-id="' + n.id + '" data-key="' + BA.esc(key) + '"' +
              (hiddenByParent ? ' style="display:none"' : '') + '>' +
-      '<td class="name ellipsis" style="padding-left:' + (8 + indent * 18) + 'px" title="' + BA.esc(n.name) + ' — навести камеру">' +
+      '<td class="name ellipsis" style="padding-left:' + (8 + indent * 18) + 'px" title="' + BA.esc(n.name + t('zoom_title')) + '">' +
         '<span class="chev">▾</span>' + BA.esc(n.name) + '</td>' +
       '<td><span class="pill neutral">' + BA.esc(n.level) + '</span></td>' +
       '<td class="num">' + (branch ? n.floors : '') + '</td>' +
@@ -302,16 +265,16 @@
         if (item.node.status !== 'problem') return;
         var n = item.node;
         out.push('<tr class="leaf" data-id="' + n.id + '">' +
-          '<td class="name ellipsis" title="' + BA.esc(n.name) + ' — навести камеру"><span class="chev">▾</span>' +
+          '<td class="name ellipsis" title="' + BA.esc(n.name + t('zoom_title')) + '"><span class="chev">▾</span>' +
             (item.path.length ? '<span class="path">' + BA.esc(item.path.join(' / ')) + ' / </span>' : '') + BA.esc(n.name) + '</td>' +
           '<td><span class="pill neutral">' + BA.esc(n.level) + '</span></td>' +
           '<td class="num"></td><td class="num code">' + BA.esc(n.area) + '</td>' +
           '<td>' + statusCell(n) + '</td></tr>');
       });
-      empty.textContent = 'Проблемных этажей нет.';
+      empty.textContent = t('empty_bad');
     } else {
       tree.forEach(function (n, i) { renderNode(n, '', i, 0, false, out); });
-      empty.textContent = 'Ничего ещё не посчитано.';
+      empty.textContent = t('empty');
     }
 
     rows.innerHTML = out.join('');
@@ -333,20 +296,20 @@
   }
 
   function renderStatus() {
-    var t = DATA.totals;
+    var tot = DATA.totals;
     var el = document.getElementById('status');
-    if (!t || !(DATA.tree || []).length) {
-      el.textContent = 'Выделите корпус, комплекс или сами этажи и нажмите «Посчитать».';
+    if (!tot || !(DATA.tree || []).length) {
+      el.textContent = t('status_hint');
       return;
     }
-    var how = DATA.method === 'section' ? 'сечение на ' + DATA.offset + ' мм от низа этажа' : 'по верхней грани';
-    if (DATA.method === 'section' && t.shifted) {
-      how += (t.floors === 1 ? ' (у этажа' : ' (у ' + t.shifted + ' из ' + t.floors) + ' высота подобрана другая — см. статус)';
+    var how = DATA.method === 'section' ? tf('how_section', { mm: DATA.offset }) : t('how_top');
+    if (DATA.method === 'section' && tot.shifted) {
+      how += tot.floors === 1 ? t('shifted_one') : tf('shifted_n', { n: tot.shifted, m: tot.floors });
     }
-    el.textContent = 'Этажей: ' + t.floors +
-      (t.problems ? ' (проблемных ' + t.problems + ')' : '') +
-      ' • площадь ' + t.area + ' м² • ' + how +
-      (DATA.spent ? ' • ' + DATA.spent + ' с' : '');
+    el.textContent = tf('st_floors', { n: tot.floors }) +
+      (tot.problems ? tf('st_problems', { n: tot.problems }) : '') +
+      tf('st_area', { a: tot.area }) + how +
+      (DATA.spent ? tf('st_spent', { s: DATA.spent }) : '');
   }
 
   function refreshCopyButton() {
@@ -359,9 +322,9 @@
       key = available.indexOf('blocks') >= 0 ? 'blocks' : available[available.length - 1];
       setRadio('copy', key);
     }
-    var t = DATA.tables && DATA.tables[key];
-    document.getElementById('btnCopy').textContent = t ? 'Скопировать: ' + LABELS[key] + ' (' + t.cells.length + ')' : 'Скопировать';
-    document.getElementById('btnCopy').disabled = !t;
+    var tab = DATA.tables && DATA.tables[key];
+    document.getElementById('btnCopy').textContent = tab ? tf('btn_copy_n', { what: LABELS[key], n: tab.cells.length }) : t('btn_copy');
+    document.getElementById('btnCopy').disabled = !tab;
     document.getElementById('btnExport').disabled =
       !((DATA.tree || []).length && DATA.method === 'section');
   }
@@ -391,29 +354,57 @@
 
   window.acCopy = function () {
     var key = radio('copy');
-    var t = DATA.tables && DATA.tables[key];
-    if (!t) { BA.toast('Сначала посчитайте — копировать пока нечего.'); return; }
-    BA.copyTable(t.columns, t.cells.map(function (row) {
-      return row.map(function (v) { return { v: v }; });
-    }));
+    var tab = DATA.tables && DATA.tables[key];
+    if (!tab) { BA.toast(t('copy_first')); return; }
+    // BA.copyBoth, а не BA.copyTable: тост copyTable в ba.js только русский
+    var rows = tab.cells.map(function (row) { return row.map(function (v) { return { v: v }; }); });
+    BA.copyBoth(BA.tableToTsv(tab.columns, rows), BA.tableToHtml(tab.columns, rows), function () {
+      BA.toast(tf('toast_copied', { r: rows.length, c: tab.columns.length }));
+    });
   };
+
+  /* ---------- подтверждение ---------- */
+
+  // lines[0] — вопрос, остальное — пояснение; Enter — да, Esc — нет
+  var ASK_YES = null;
+  function ask(lines, onYes) {
+    document.getElementById('askText').innerHTML = lines.map(function (line, i) {
+      return '<p' + (i ? ' class="dim"' : '') + '>' + BA.esc(line) + '</p>';
+    }).join('');
+    ASK_YES = onYes;
+    document.getElementById('ask').classList.add('open');
+    document.getElementById('askYes').focus();
+  }
+  function closeAsk(yes) {
+    var cb = ASK_YES;
+    ASK_YES = null;
+    document.getElementById('ask').classList.remove('open');
+    if (yes && cb) cb();
+  }
+  document.getElementById('askYes').addEventListener('click', function () { closeAsk(true); });
+  document.getElementById('askNo').addEventListener('click', function () { closeAsk(false); });
+  document.getElementById('ask').addEventListener('click', function (e) { if (e.target === this) closeAsk(false); });
+  document.addEventListener('keydown', function (e) {
+    if (!document.getElementById('ask').classList.contains('open')) return;
+    if (e.key === 'Escape') closeAsk(false);
+    if (e.key === 'Enter') { e.preventDefault(); closeAsk(true); }
+  });
 
   /* ---------- события ---------- */
 
   function run() {
     var s = settings();
-    document.getElementById('status').textContent = 'Считаю…';
+    document.getElementById('status').textContent = t('counting');
     sketchup.recalc(s.method, s.offset, s.depth, s.snap, s.gap, s.hidden, s.holes);
   }
 
   document.getElementById('btnRun').addEventListener('click', run);
   document.getElementById('btnHi').addEventListener('click', function () { sketchup.highlight(); });
   document.getElementById('btnExport').addEventListener('click', function () {
-    var t = DATA.totals || { floors: 0 };
-    if (!BA.confirmUndoable(['Создать в модели грани сечения, этажей: ' + t.floors + '?',
-                             'Появится группа «area counter: сечения» на теге AC_Сечения с той же иерархией. ' +
-                             'Прежние сечения этих этажей будут заменены.'])) return;
-    sketchup.export_contours();
+    var tot = DATA.totals || { floors: 0 };
+    // Как BA.confirmUndoable: вопрос, что появится, и про отмену — на языке сборки
+    ask([tf('confirm_export', { n: tot.floors }), t('confirm_export_where'), t('confirm_undo')],
+        function () { sketchup.export_contours(); });
   });
   document.getElementById('btnCopy').addEventListener('click', window.acCopy);
   document.getElementById('onlyBad').addEventListener('change', render);
@@ -422,7 +413,7 @@
     var keys = allBranchKeys(DATA.tree || [], '', []);
     var anyOpen = keys.some(function (k) { return !CLOSED[k]; });
     keys.forEach(function (k) { CLOSED[k] = anyOpen; });
-    this.textContent = anyOpen ? 'Развернуть всё' : 'Свернуть всё';
+    this.textContent = anyOpen ? t('btn_unfold') : t('btn_fold');
     render();
   });
 

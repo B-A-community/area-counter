@@ -36,7 +36,7 @@ module BACommunity
         end
 
         def activate
-          Sketchup.status_text = 'Подсветка area counter. Esc — выйти.'
+          Sketchup.status_text = AreaCounter.t(:st_highlight_on)
           Sketchup.active_model.active_view.invalidate
         end
 

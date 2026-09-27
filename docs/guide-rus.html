@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>area counter 1.0 — краткая инструкция</title>
+<!-- Оформление — как у инструкции RALNCS (B-A-community/ralncs, docs/guide-rus.html) -->
+<style>
+  @page { size: A4; margin: 14mm 16mm; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font: 10.5pt/1.42 "Segoe UI", system-ui, sans-serif; color: #1c1c1c; }
+  header { display: flex; align-items: center; gap: 14px; border-bottom: 1px solid #ddd; padding-bottom: 10px; margin-bottom: 12px; }
+  header svg { width: 44px; height: 44px; flex: none; }
+  h1 { font-size: 20pt; font-weight: 700; line-height: 1.1; }
+  .sub { color: #666; font-size: 10pt; margin-top: 2px; }
+  h2 { font-size: 12pt; font-weight: 700; margin: 12px 0 5px; display: flex; align-items: center; gap: 8px; }
+  h2 .n { display: inline-block; width: 22px; height: 22px; border-radius: 11px; background: #2b6cb0; color: #fff; font-size: 10pt; text-align: center; line-height: 22px; }
+  p, li { margin-bottom: 4px; }
+  ol, ul { padding-left: 20px; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 0 22px; }
+  kbd, .btn { font: inherit; font-size: 9pt; padding: 1px 7px; border: 1px solid #bbb; border-radius: 5px; background: #fff; white-space: nowrap; }
+  .btn.primary { background: #2b6cb0; border-color: #2b6cb0; color: #fff; }
+  .pill { display: inline-block; padding: 0 7px; border-radius: 10px; font-size: 8.5pt; color: #fff; }
+  .ok { background: #2f855a; } .warn { background: #dd8a20; } .bad { background: #c53030; }
+  .note { background: #f5f5f4; border: 1px solid #ddd; border-radius: 8px; padding: 7px 12px; margin-top: 8px; font-size: 9.5pt; }
+  .note b { color: #c53030; }
+  .note .path { font-weight: 600; }
+  footer { margin-top: 12px; padding-top: 8px; border-top: 1px solid #ddd; color: #888; font-size: 9pt; display: flex; justify-content: space-between; }
+</style>
+</head>
+<body>
+<header>
+  <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+    <path d="M4.5 3.5h10v5h5v8h-15z" fill="#2B6CB0" stroke="#3B3B38" stroke-width="1.6" stroke-linejoin="round"/>
+    <path d="M4.5 20.5h15" stroke="#3B3B38" stroke-width="1.6" stroke-linecap="round"/>
+    <path d="M4.5 19v3M19.5 19v3" stroke="#3B3B38" stroke-width="1.6" stroke-linecap="round"/>
+  </svg>
+  <div>
+    <h1>area counter 1.0 — краткая инструкция</h1>
+    <div class="sub">Плагин SketchUp 2024 / 2025 / 2026: площади этажей, корпусов и комплексов по верхней грани или по сечению, таблица в буфер, грани сечений в модели</div>
+  </div>
+</header>
+
+<h2><span class="n">1</span>Установка</h2>
+<p>SketchUp → <b>Window → Extension Manager → Install Extension</b> → выбрать <code>area-counter-1.0-rus.rbz</code> → перезапустить SketchUp.
+Появится кнопка «Посчитать площадь» на панели «area counter» и меню <b>Extensions → area counter</b>. Прежнюю тестовую версию перед установкой лучше удалить.</p>
+
+<div class="two">
+<div>
+<h2><span class="n">2</span>Посчитать</h2>
+<ol>
+  <li>Выделите корпус, комплекс или сами этажи — группы или компоненты.</li>
+  <li>Кнопка на панели или <b>Extensions → area counter → Посчитать площадь</b> — откроется окно с таблицей.</li>
+  <li>Справа, <b>Что выделено</b>: <i>Этажи</i> — выделены сами этажи, <i>Корпус</i> — этажи на уровень ниже, <i>Комплекс</i> — на два. Этаж считается целиком, со всем, что в него вложено.</li>
+  <li><b>Способ</b>: <i>Верхняя грань</i> — быстро, по горизонтальным граням верхней отметки; <i>Сечение</i> — горизонтальный разрез на высоте от низа этажа (по умолчанию 1000 мм), площадь по <b>внешнему контуру</b> с пластикой и окнами.</li>
+</ol>
+<p>Параметры сечения: <b>зазоры</b> до 20 мм между кусками фасада закрываются, <b>сварка точек</b> 1 мм, скрытое пропускается, внутренние дворы по умолчанию <b>не вычитаются</b> (галочка «вычитать дворы»). Если рез попал на плиту — сдвигается на 2 мм; если кольцо фасада разорвано проёмом — плагин сам подбирает другую высоту и пишет её в статусе.</p>
+
+<h2><span class="n">3</span>Таблица и статусы</h2>
+<p>Дерево комплекс → корпус → этаж с площадями в м². Клик по строке — камера на объект.
+<span class="pill ok">посчитано</span> — можно верить; <span class="pill warn">оговорка</span> — посчитано, но сдвинута высота или найдены отдельные куски; <span class="pill bad">проблема</span> — верить нельзя, причина в таблетке.
+<span class="btn">только проблемные</span> оставляет красные, <span class="btn">Подсветить</span> обводит посчитанное во вьюпорте (<kbd>Esc</kbd> — выключить).</p>
+</div>
+
+<div>
+<h2><span class="n">4</span>Скопировать в таблицу</h2>
+<p>Справа, <b>Копировать</b>: <i>Этажи</i> (для проверки), <i>Корпуса</i> или <i>Комплексы</i>. Кнопка <span class="btn">Скопировать</span> кладёт таблицу в буфер — в Google Таблицах / Excel нажмите <kbd>Ctrl+V</kbd>: колонки лягут сами, числа с запятой, площади старших уровней — в тех же строках.</p>
+
+<h2><span class="n">5</span>Вывод сечений</h2>
+<p>После счёта способом «Сечение» кнопка <span class="btn">Вывод сечений</span> кладёт в модель группу <b>«area counter: сечения»</b> на теге <b>AC_Сечения</b> с той же иерархией. В группе этажа — одна плоская грань по внешнему контуру на высоте реза: кликните по ней — площадь покажет <b>Entity Info</b>. Повторный вывод заменяет прежнее сечение этажа. Исходные этажи не меняются; отмена — <kbd>Ctrl+Z</kbd>.</p>
+
+<h2><span class="n">6</span>Один этаж</h2>
+<p>Выделите одну группу-этаж → <b>Extensions → area counter → Сечение этажа…</b> → задайте высоту реза, зазоры и дворы → OK. Плагин построит грань и покажет площадь в окне.</p>
+
+<p class="note"><b>Важно.</b> Отдельные куски сечения (больше 0,1 м²) в площадь этажа не входят — о них сказано в статусе. Настройки окна запоминаются; <span class="btn">Сбросить</span> возвращает умолчания. Версия и авторы — <span class="path">Extensions → area counter → О плагине…</span></p>
+</div>
+</div>
+
+<footer>
+  <span>Авторы: Ruslan Tkachenko и Maksar Sanjeev · Apache 2.0 · B&amp;A community</span>
+  <span>github.com/B-A-community/area-counter</span>
+</footer>
+</body>
+</html>

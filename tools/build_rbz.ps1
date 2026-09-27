@@ -1,19 +1,28 @@
 ﻿param(
-    # Суффикс в имени пакета. Уйдём в прод — запускать с -Suffix ''
-    [string]$Suffix = '_test'
+    # ru — русская сборка, en — английская, all — обе
+    [ValidateSet('ru', 'en', 'all')][string]$Lang = 'all',
+    # Дополнительно упаковать релизные архивы: .rbz + PDF-инструкция (docs\)
+    [switch]$Release
 )
 
-# Собирает src\ в area_counter<версия><суффикс>.rbz — например
-# area_counter0.9.1_test.rbz. Имя архива на идентичность расширения не влияет:
-# SketchUp читает area_counter.rb из КОРНЯ архива, а версию — из него же.
-# Предыдущая сборка сохраняется в build\backup.
-# Запуск:  powershell -ExecutionPolicy Bypass -File tools\build_rbz.ps1
+# Собирает dist\area-counter-<версия>-rus.rbz и dist\area-counter-<версия>-eng.rbz
+# из src\ — как в RALNCS: языковой пакет — тот же исходник, в копии подменяется
+# строка LANG в src\area_counter\lang.rb (Ruby) и src\area_counter\html\i18n.js (окна).
+# С -Release рядом кладутся dist\area-counter-<версия>-rus.zip / -eng.zip:
+# внутри плагин и инструкция docs\area-counter-<версия>-guide-rus.pdf / -eng.pdf.
+# Имя архива на идентичность расширения не влияет: SketchUp читает
+# area_counter.rb из КОРНЯ архива, а версию — из него же.
+# Запуск:  powershell -ExecutionPolicy Bypass -File tools\build_rbz.ps1 [-Lang en] [-Release]
 
-$root   = Split-Path -Parent $PSScriptRoot
-$src    = Join-Path $root 'src'
-$backup = Join-Path $root 'build\backup'
+$ErrorActionPreference = 'Stop'
+Add-Type -AssemblyName System.IO.Compression            # ZipArchive / ZipArchiveMode
+Add-Type -AssemblyName System.IO.Compression.FileSystem # ZipFile / ZipFileExtensions
 
-if (-not (Test-Path $src)) { throw "Нет папки с исходниками: $src" }
+$root = Split-Path -Parent $PSScriptRoot
+$src  = Join-Path $root 'src'
+$dist = Join-Path $root 'dist'
+$docs = Join-Path $root 'docs'
+New-Item -ItemType Directory -Force $dist | Out-Null
 
 # 1. Версия берётся из исходника, чтобы имя пакета не разъезжалось с кодом
 $entry = Join-Path $src 'area_counter.rb'
@@ -21,45 +30,64 @@ $match = Select-String -Path $entry -Pattern "VERSION\s*=\s*'([^']+)'" | Select-
 if (-not $match) { throw "Не нашёл VERSION в $entry" }
 $version = $match.Matches[0].Groups[1].Value
 
-$name = "area_counter$version$Suffix.rbz"
-$rbz  = Join-Path $root $name
+$suffix = @{ ru = 'rus'; en = 'eng' }
+$langs  = if ($Lang -eq 'all') { @('ru', 'en') } else { @($Lang) }
+$utf8   = New-Object System.Text.UTF8Encoding $false
 
-# 2. Резервная копия предыдущей сборки
-if (Test-Path $rbz) {
-    New-Item -ItemType Directory -Force $backup | Out-Null
-    $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
-    Copy-Item $rbz (Join-Path $backup "$($name -replace '\.rbz$', '')_$stamp.rbz") -Force
-}
-
-# 3. Упаковка.
 # Записи добавляем поштучно: CreateFromDirectory в .NET Framework пишет пути
 # через обратный слэш, а ZIP требует прямой — SketchUp такой архив разложит
 # в один файл с именем "area_counter\toolbar.rb" вместо папки.
-$zip = Join-Path $root 'build\staging.zip'
-New-Item -ItemType Directory -Force (Split-Path $zip) | Out-Null
-if (Test-Path $zip) { Remove-Item $zip -Force }
-
-Add-Type -AssemblyName System.IO.Compression            # ZipArchive / ZipArchiveMode
-Add-Type -AssemblyName System.IO.Compression.FileSystem # ZipFile / ZipFileExtensions
-$archive = [System.IO.Compression.ZipFile]::Open($zip, [System.IO.Compression.ZipArchiveMode]::Create)
-$prefix = (Resolve-Path $src).Path.TrimEnd('\') + '\'
-Get-ChildItem $src -Recurse -File | Sort-Object FullName | ForEach-Object {
-    $entryName = $_.FullName.Substring($prefix.Length).Replace('\', '/')
-    [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile(
-        $archive, $_.FullName, $entryName, [System.IO.Compression.CompressionLevel]::Optimal) | Out-Null
-}
-$archive.Dispose()
-
-Move-Item $zip $rbz -Force
-
-# 4. Прошлые пакеты с другим именем убираем из корня, чтобы не поставили старое
-Get-ChildItem $root -Filter '*.rbz' -File | Where-Object { $_.Name -ne $name } | ForEach-Object {
-    New-Item -ItemType Directory -Force $backup | Out-Null
-    Move-Item $_.FullName (Join-Path $backup $_.Name) -Force
-    Write-Host "Убрал в backup прежний пакет: $($_.Name)"
+function Add-Tree($zipPath, $dir) {
+    $archive = [System.IO.Compression.ZipFile]::Open($zipPath, [System.IO.Compression.ZipArchiveMode]::Create)
+    try {
+        $prefix = (Resolve-Path $dir).Path.TrimEnd('\') + '\'
+        Get-ChildItem $dir -Recurse -File | Sort-Object FullName | ForEach-Object {
+            $name = $_.FullName.Substring($prefix.Length).Replace('\', '/')
+            [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile(
+                $archive, $_.FullName, $name, [System.IO.Compression.CompressionLevel]::Optimal) | Out-Null
+        }
+    } finally {
+        $archive.Dispose()
+    }
 }
 
-Write-Host "Собрано: $rbz"
-$check = [System.IO.Compression.ZipFile]::OpenRead($rbz)
-$check.Entries | ForEach-Object { Write-Host ("  {0,-45} {1,7} б" -f $_.FullName, $_.Length) }
-$check.Dispose()
+foreach ($l in $langs) {
+    $base  = 'area-counter-{0}-{1}' -f $version, $suffix[$l]
+    $stage = Join-Path $env:TEMP ('area_counter_build_' + $l)
+    Remove-Item $stage -Recurse -Force -ErrorAction SilentlyContinue
+    Copy-Item $src $stage -Recurse
+
+    # 2. Язык: одна строка LANG в двух словарях
+    foreach ($f in @('area_counter\lang.rb', 'area_counter\html\i18n.js')) {
+        $p = Join-Path $stage $f
+        $text = [System.IO.File]::ReadAllText($p, $utf8)
+        $patched = $text -replace "LANG = '[a-z]{2}'", "LANG = '$l'"
+        if ($patched -notmatch "LANG = '$l'") { throw "Не нашёл строку LANG в $f" }
+        [System.IO.File]::WriteAllText($p, $patched, $utf8)
+    }
+
+    # 3. Плагин
+    $rbz = Join-Path $dist "$base.rbz"
+    Remove-Item $rbz -ErrorAction SilentlyContinue
+    Add-Tree $rbz $stage
+    Remove-Item $stage -Recurse -Force
+    Write-Host "Собрано: $rbz"
+
+    # 4. Релизный архив: плагин + инструкция
+    if ($Release) {
+        $guide = Join-Path $docs ('area-counter-{0}-guide-{1}.pdf' -f $version, $suffix[$l])
+        if (-not (Test-Path $guide)) { throw "Нет инструкции $guide — сначала tools\build_guides.ps1" }
+        $pack = Join-Path $env:TEMP ('area_counter_pack_' + $l)
+        Remove-Item $pack -Recurse -Force -ErrorAction SilentlyContinue
+        New-Item -ItemType Directory -Force $pack | Out-Null
+        Copy-Item $rbz $pack
+        Copy-Item $guide $pack
+        $zip = Join-Path $dist "$base.zip"
+        Remove-Item $zip -ErrorAction SilentlyContinue
+        Add-Tree $zip $pack
+        Remove-Item $pack -Recurse -Force
+        Write-Host "Собрано: $zip"
+    }
+}
+
+Get-ChildItem $dist -File | ForEach-Object { Write-Host ("  {0,-40} {1,9} б" -f $_.Name, $_.Length) }

@@ -23,7 +23,10 @@ module BACommunity
       module Traversal
 
         DICT = 'area_counter'.freeze
-        TAG  = 'AC_Сечения'.freeze
+        TAG  = AreaCounter.t(:tag).freeze
+        # Тег обеих языковых сборок: сечения, выгруженные русской версией,
+        # английская тоже не считает этажами — и наоборот
+        TAGS = AreaCounter::STRINGS.values.map { |s| s[:tag] }.uniq.freeze
 
         # Возвращает { faces: [{ rings:, normal:, zmin:, zmax: }],
         #              bbox: [minx, miny, minz, maxx, maxy, maxz] или nil,
@@ -120,7 +123,7 @@ module BACommunity
         def self.own_result?(entity)
           return true if entity.attribute_dictionary(DICT)
           layer = entity.layer
-          !layer.nil? && layer.name == TAG
+          !layer.nil? && TAGS.include?(layer.name)
         end
 
         def self.shown?(entity)

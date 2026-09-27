@@ -26,29 +26,30 @@ module BACommunity
         model = Sketchup.active_model
         sel   = model.selection.to_a
         unless sel.length == 1 && Calc.group_like?(sel.first)
-          Panel.notify('Сечение этажа: выделите ровно одну группу или компонент — этаж, и запустите снова.')
+          Panel.notify(AreaCounter.t(:cmd_need_one))
           return
         end
         entity = sel.first
 
         o = Panel.section_opts
-        prompts  = ['Высота реза от низа этажа, мм', 'Допуск сварки точек, мм',
-                    'Закрывать зазоры до, мм', 'Скрытое и выключенные теги', 'Внутренние дворы']
+        prompts  = %i[cmd_cut cmd_snap cmd_gap cmd_hidden cmd_holes].map { |k| AreaCounter.t(k) }
+        skip     = AreaCounter.t(:opt_skip)
+        subtract = AreaCounter.t(:opt_subtract)
         defaults = [o[:cut_mm].to_f, o[:snap_mm].to_f, o[:gap_mm].to_f,
-                    o[:ignore_hidden] ? 'пропускать' : 'учитывать',
-                    o[:subtract_holes] ? 'вычитать' : 'не вычитать']
-        lists    = ['', '', '', 'пропускать|учитывать', 'не вычитать|вычитать']
-        input = UI.inputbox(prompts, defaults, lists, 'Сечение этажа')
+                    o[:ignore_hidden] ? skip : AreaCounter.t(:opt_include),
+                    o[:subtract_holes] ? subtract : AreaCounter.t(:opt_keep)]
+        lists    = ['', '', '', "#{skip}|#{AreaCounter.t(:opt_include)}", "#{AreaCounter.t(:opt_keep)}|#{subtract}"]
+        input = UI.inputbox(prompts, defaults, lists, AreaCounter.t(:cmd_title))
         return unless input
 
         cut, snap, gap, hidden, holes = input
         if cut.to_f <= 0 || snap.to_f <= 0 || gap.to_f < 0
-          Panel.notify('Сечение этажа: высота и допуск сварки должны быть больше нуля, зазор — не меньше нуля.')
+          Panel.notify(AreaCounter.t(:cmd_bad_values))
           return
         end
         Panel.store_section_opts(cut_mm: cut.to_f, snap_mm: snap.to_f, gap_mm: gap.to_f,
-                                 ignore_hidden: hidden == 'пропускать',
-                                 subtract_holes: holes == 'вычитать')
+                                 ignore_hidden: hidden == skip,
+                                 subtract_holes: holes == subtract)
 
         Calc.reset_cache
         # В режиме редактирования трансформация выделенного уже мировая (см. Calc.run)
@@ -56,15 +57,13 @@ module BACommunity
         r = node.section
 
         if r.nil? || r[:contour].nil?
-          Panel.notify("Сечение не построено: #{node.reason || 'контур не найден'}.")
+          Panel.notify(AreaCounter.t(:cmd_failed, node.reason || AreaCounter.t(:cmd_no_contour)))
           return
         end
 
         ok, msg = Section::Builder.build([node])
         text = if ok
-                 format('Сечение «%s»: %s м² на высоте %d мм. Кликните по грани — площадь покажет ' \
-                        'Entity Info. Отмена — Ctrl+Z.',
-                        Report.display_name(node), Report.number(r[:area_m2]), r[:cut_mm].round)
+                 AreaCounter.t(:cmd_done, Report.display_name(node), Report.number(r[:area_m2]), r[:cut_mm].round)
                else
                  msg
                end

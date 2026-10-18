@@ -23,7 +23,7 @@ module BACommunity
     MENU_NAME    = 'area counter'.freeze
     ICONS_DIR    = File.join(File.dirname(__FILE__), 'icons').freeze
 
-    # :action — метод модуля Panel (или Command для :floor_section);
+    # :action — метод модуля Panel;
     # :stub — инструмент ещё не реализован. На панели инструментов — только
     # кнопки с toolbar: true, в меню — все.
     # Подписи — из словаря языка сборки (lang.rb): menu_<key>, tip_<key>, st_<key>.
@@ -32,7 +32,6 @@ module BACommunity
       { key: :panel,     icon: 'area_top', action: :show },
       { key: :highlight, icon: 'area_top', action: :highlight_now },
       { key: :copy,      icon: 'area_top', action: :copy_now },
-      { key: :section,   icon: 'area_top', action: :floor_section },
       { key: :volume,    icon: 'area_top', action: :stub }
     ].freeze
 
@@ -55,7 +54,6 @@ module BACommunity
     def self.run_button(spec)
       case spec[:action]
       when :stub          then not_implemented(title_of(spec))
-      when :floor_section then Command.floor_section
       else Panel.public_send(spec[:action])
       end
     end

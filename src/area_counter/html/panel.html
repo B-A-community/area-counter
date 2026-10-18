@@ -7,48 +7,35 @@
 <link rel="stylesheet" href="ba.css">
 <style>
   /* Только то, чего нет в ba.css: дерево в таблице и числа */
+  header, thead { user-select: none; }   /* протяжка мышью не выделяет подписи кнопок */
   td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
   tr.branch td { font-weight: 600; }
   tr.branch.h2 td { background: #fafaf9; }
   td.name { cursor: pointer; }
-  td.name .chev {
+  .chev {
     display: inline-block; width: 14px; color: #888; font-size: 10px;
     transition: transform .12s ease;
   }
   tr.closed td.name .chev { transform: rotate(-90deg); }
   tr.leaf td.name .chev { visibility: hidden; }
   tr:hover td.name { color: #2b6cb0; }
+  /* Шеврон в шапке «Объект» сворачивает и разворачивает всё дерево сразу */
+  #foldAll { cursor: pointer; }
+  #foldAll.closed { transform: rotate(-90deg); }
+  #foldAll.off { visibility: hidden; }
+  #foldAll:hover { color: #2b6cb0; }
   .path { color: #888; font-weight: 400; }
   #empty { padding: 28px 0; color: #888; }
 
   /* Контент: таблица слева, закреплённая панель настроек справа (#side из ba.css) */
   .main { flex: 1; display: flex; min-height: 0; }
-  #side { overflow: auto; flex: 0 0 250px; gap: 6px; }
+  #side { overflow: auto; flex: 0 0 220px; gap: 6px; }
   #side .group h3 { margin: 6px 0 2px; }
   #side label.opt { padding: 3px 0; cursor: pointer; }
   #side .field { display: flex; flex-direction: column; gap: 4px; padding: 3px 0; color: #555; }
   #side .field input[type="number"] { width: 100px; padding: 4px 8px; }
   #side .hint { color: #888; font-size: 11px; line-height: 1.4; margin-top: 4px; }
   #side .side-foot { margin-top: auto; padding-top: 10px; border-top: 1px solid #eee; }
-
-  /* Инструкция — попап под шапкой, шире стандартного */
-  #help.popover { width: 520px; max-width: calc(100vw - 28px); max-height: 75vh; overflow: auto; }
-  #help h3 { font-size: 12px; color: #666; font-weight: 600; margin: 10px 0 4px; }
-  #help h3:first-child { margin-top: 0; }
-  #help p { margin: 0 0 6px; color: #1c1c1c; }
-  #help b { font-weight: 600; }
-
-  /* Подтверждение внутри окна — в стиле .popover из ba.css. Системный confirm()
-     SketchUp 2025 в HtmlDialog не показывает и сразу отвечает «нет». */
-  #ask { position: fixed; inset: 0; z-index: 20; display: none; align-items: center; justify-content: center;
-         background: rgba(28, 28, 28, .18); }
-  #ask.open { display: flex; }
-  #ask .box { background: #fff; border: 1px solid #ccc; border-radius: 8px; padding: 14px 16px 12px;
-              width: 420px; max-width: calc(100vw - 28px); }
-  #ask p { margin: 0 0 6px; }
-  #ask p.dim { color: #666; }
-  #ask .foot { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; padding-top: 10px;
-               border-top: 1px solid #eee; }
 </style>
 </head>
 <body>
@@ -56,16 +43,9 @@
     <button id="btnRun" class="primary" data-t="btn_run">Посчитать</button>
     <button id="btnHi" data-t="btn_hi" data-t-title="hi_title">Подсветить</button>
     <button id="btnCopy" data-t="btn_copy" data-t-title="copy_title">Скопировать</button>
-    <button id="btnExport" data-t="btn_export" data-t-title="export_title">Вывод сечений</button>
     <label class="opt" data-t-title="only_bad_title">
       <input type="checkbox" id="onlyBad"> <span data-t="only_bad">только проблемные</span>
     </label>
-    <span class="spacer"></span>
-    <button id="btnFold" data-t="btn_fold" data-t-title="fold_title">Свернуть всё</button>
-    <button id="btnHelp" data-t="btn_help">Инструкция</button>
-
-    <!-- Текст инструкции — в i18n.js (help_html), на языке сборки -->
-    <div id="help" class="popover" data-t-html="help_html"></div>
   </header>
 
   <div id="status" data-t="status_hint">Выделите корпус, комплекс или сами этажи и нажмите «Посчитать».</div>
@@ -76,7 +56,7 @@
         <thead>
           <!-- без class="col": это одноуровневая шапка, tr.col в ba.css прилипает на 24px ниже -->
           <tr>
-            <th data-t="th_object">Объект</th>
+            <th><span id="foldAll" class="chev off" data-t-title="fold_title">▾</span><span data-t="th_object">Объект</span></th>
             <th data-t="th_level">Уровень</th>
             <th class="num" data-t="th_floors">Этажей</th>
             <th class="num" data-t="th_area">Площадь, м²</th>
@@ -91,30 +71,18 @@
     <aside id="side">
       <div class="group">
         <h3 data-t="side_selected">Что выделено</h3>
-        <label class="opt"><input type="radio" name="depth" value="0"> <span data-t="lvl_floors">Этажи</span></label>
-        <label class="opt"><input type="radio" name="depth" value="1" checked> <span data-t="lvl_block">Корпус</span></label>
-        <label class="opt"><input type="radio" name="depth" value="2"> <span data-t="lvl_complex">Комплекс</span></label>
+        <label class="opt" data-t-title="tip_depth0"><input type="radio" name="depth" value="0"> <span data-t="lvl_floors">Этажи</span></label>
+        <label class="opt" data-t-title="tip_depth1"><input type="radio" name="depth" value="1" checked> <span data-t="lvl_block">Корпус</span></label>
+        <label class="opt" data-t-title="tip_depth2"><input type="radio" name="depth" value="2"> <span data-t="lvl_complex">Комплекс</span></label>
       </div>
       <div class="group">
         <h3 data-t="side_method">Способ</h3>
-        <label class="opt"><input type="radio" name="method" value="top" checked> <span data-t="m_top">Верхняя грань</span></label>
-        <label class="opt"><input type="radio" name="method" value="section"> <span data-t="m_section">Сечение</span></label>
-        <div class="field">
-          <span data-t="f_offset">Высота реза от низа этажа, мм</span>
+        <label class="opt" data-t-title="tip_top"><input type="radio" name="method" value="top" checked> <span data-t="m_top">Верхняя грань</span></label>
+        <label class="opt" data-t-title="tip_section"><input type="radio" name="method" value="section"> <span data-t="m_section">Сечение</span></label>
+        <div class="field" data-t-title="tip_offset">
+          <span data-t="f_offset">Отметка от низа этажа, мм</span>
           <input type="number" id="offset" value="1000" min="1" step="50">
         </div>
-        <div class="field">
-          <span data-t="f_gap">Закрывать зазоры до, мм</span>
-          <input type="number" id="gap" value="20" min="0" step="5">
-        </div>
-        <div class="field">
-          <span data-t="f_snap">Сварка точек, мм</span>
-          <input type="number" id="snap" value="1" min="0.1" step="0.5">
-        </div>
-        <label class="opt" data-t-title="hidden_title">
-          <input type="checkbox" id="hidden" checked> <span data-t="hidden_lbl">пропускать скрытое</span></label>
-        <label class="opt" data-t-title="holes_title">
-          <input type="checkbox" id="holes"> <span data-t="holes_lbl">вычитать дворы</span></label>
       </div>
       <div class="group">
         <h3 data-t="side_copy">Копировать</h3>
@@ -129,18 +97,10 @@
   </div>
 
   <footer data-t="footer">
-    Сечение — по внешнему контуру, включая пластику и окна; щели уже заданного зазора
-    закрываются, дворы по умолчанию не вычитаются. Подробнее — «Инструкция». Площади в м²,
-    числа с запятой.
+    Сечение — по внешнему контуру, включая пластику и окна; щели до 20 мм закрываются,
+    дворы не вычитаются. Площади в м², числа с запятой.
   </footer>
   <div id="toast"></div>
-  <div id="ask"><div class="box">
-    <div id="askText"></div>
-    <div class="foot">
-      <button id="askNo" data-t="btn_cancel">Отмена</button>
-      <button id="askYes" class="primary" data-t="btn_create">Создать</button>
-    </div>
-  </div></div>
 
 <script src="ba.js"></script>
 <script src="i18n.js"></script>
@@ -148,6 +108,7 @@
   applyLang();
   var DATA = { tree: [], tables: {}, maxHeight: 0, method: 'top', offset: 1000, depth: 1, totals: null };
   var CLOSED = {};
+  var LAST_RUN = null;
   var LABELS = { floors: t('pl_floors'), blocks: t('pl_blocks'), complexes: t('pl_complexes') };
 
   function radio(name) {
@@ -158,28 +119,19 @@
     var el = document.querySelector('input[name="' + name + '"][value="' + value + '"]');
     if (el) el.checked = true;
   }
-  function num(id, fallback) {
-    var v = parseFloat(document.getElementById(id).value);
-    return isNaN(v) ? fallback : v;
-  }
   function settings() {
+    var offset = parseFloat(document.getElementById('offset').value);
     return {
       depth: parseInt(radio('depth'), 10),
       method: radio('method'),
-      offset: num('offset', 1000) > 0 ? num('offset', 1000) : 1000,
-      gap: Math.max(0, num('gap', 20)),
-      snap: num('snap', 1) > 0 ? num('snap', 1) : 1,
-      hidden: document.getElementById('hidden').checked,
-      holes: document.getElementById('holes').checked,
+      offset: offset > 0 ? offset : 1000,
       copy: radio('copy')
     };
   }
   // В реестр SketchUp — компактной строкой без кавычек, JSON там ломается
   function savePrefs() {
     var s = settings();
-    sketchup.save_prefs('depth:' + s.depth + ',method:' + s.method + ',offset:' + s.offset +
-                        ',snap:' + s.snap + ',gap:' + s.gap + ',hidden:' + (s.hidden ? 1 : 0) +
-                        ',holes:' + (s.holes ? 1 : 0) + ',copy:' + s.copy);
+    sketchup.save_prefs('depth:' + s.depth + ',method:' + s.method + ',offset:' + s.offset + ',copy:' + s.copy);
   }
   function applyPrefs(str) {
     if (!str) return;
@@ -189,19 +141,12 @@
       if (kv[0] === 'method') setRadio('method', kv[1]);
       if (kv[0] === 'copy')   setRadio('copy', kv[1]);
       if (kv[0] === 'offset') document.getElementById('offset').value = kv[1];
-      if (kv[0] === 'snap')   document.getElementById('snap').value = kv[1];
-      if (kv[0] === 'gap')    document.getElementById('gap').value = kv[1];
-      if (kv[0] === 'hidden') document.getElementById('hidden').checked = kv[1] === '1';
-      if (kv[0] === 'holes')  document.getElementById('holes').checked = kv[1] === '1';
     });
     syncSectionFields();
   }
-  // Параметры сечения нужны только сечению
+  // Отметка нужна только сечению
   function syncSectionFields() {
-    var off = radio('method') !== 'section';
-    ['offset', 'gap', 'snap', 'hidden', 'holes'].forEach(function (id) {
-      document.getElementById(id).disabled = off;
-    });
+    document.getElementById('offset').disabled = radio('method') !== 'section';
   }
 
   /* ---------- дерево в таблице ---------- */
@@ -253,6 +198,16 @@
     return acc;
   }
 
+  // Шеврон в шапке: нет веток или включён фильтр — не показываем; иначе
+  // смотрит вниз, пока хоть одна ветка раскрыта, и вбок, когда свёрнуто всё
+  function refreshFoldAll() {
+    var el = document.getElementById('foldAll');
+    var keys = allBranchKeys(DATA.tree || [], '', []);
+    var onlyBad = document.getElementById('onlyBad').checked;
+    el.classList.toggle('off', !keys.length || onlyBad);
+    el.classList.toggle('closed', keys.length > 0 && keys.every(function (k) { return CLOSED[k]; }));
+  }
+
   function render() {
     var rows = document.getElementById('rows');
     var empty = document.getElementById('empty');
@@ -279,7 +234,7 @@
 
     rows.innerHTML = out.join('');
     empty.style.display = out.length ? 'none' : '';
-    document.getElementById('btnFold').disabled = !(tree.length && DATA.maxHeight > 0 && !onlyBad);
+    refreshFoldAll();
 
     Array.prototype.forEach.call(rows.querySelectorAll('td.name'), function (td) {
       td.addEventListener('click', function (ev) {
@@ -325,8 +280,6 @@
     var tab = DATA.tables && DATA.tables[key];
     document.getElementById('btnCopy').textContent = tab ? tf('btn_copy_n', { what: LABELS[key], n: tab.cells.length }) : t('btn_copy');
     document.getElementById('btnCopy').disabled = !tab;
-    document.getElementById('btnExport').disabled =
-      !((DATA.tree || []).length && DATA.method === 'section');
   }
 
   /* ---------- данные из Ruby: ready → init(json) ---------- */
@@ -338,16 +291,18 @@
     if (data.method) setRadio('method', data.method);
     if (typeof data.depth === 'number') setRadio('depth', String(data.depth));
     if (data.offset) document.getElementById('offset').value = data.offset;
-    if (data.snap) document.getElementById('snap').value = data.snap;
-    if (typeof data.gap === 'number') document.getElementById('gap').value = data.gap;
-    if (typeof data.hidden === 'boolean') document.getElementById('hidden').checked = data.hidden;
-    if (typeof data.holes === 'boolean') document.getElementById('holes').checked = data.holes;
     syncSectionFields();
     DATA = data;
+    // Каждый новый расчёт приходит свёрнутым целиком: сначала итоги верхнего
+    // уровня, раскрыть — шевроном строки или шевроном в шапке «Объект»
+    if (data.run !== LAST_RUN) {
+      LAST_RUN = data.run;
+      CLOSED = {};
+      allBranchKeys(data.tree || [], '', []).forEach(function (k) { CLOSED[k] = true; });
+    }
     renderStatus();
     refreshCopyButton();
     render();
-    // Длинное сообщение (итог команды) держим дольше, чтобы успеть прочесть
     if (data.toast) BA.toast(data.toast, data.toast.length > 70 ? 6000 : 2400);
   }
   window.init = init;
@@ -363,57 +318,24 @@
     });
   };
 
-  /* ---------- подтверждение ---------- */
-
-  // lines[0] — вопрос, остальное — пояснение; Enter — да, Esc — нет
-  var ASK_YES = null;
-  function ask(lines, onYes) {
-    document.getElementById('askText').innerHTML = lines.map(function (line, i) {
-      return '<p' + (i ? ' class="dim"' : '') + '>' + BA.esc(line) + '</p>';
-    }).join('');
-    ASK_YES = onYes;
-    document.getElementById('ask').classList.add('open');
-    document.getElementById('askYes').focus();
-  }
-  function closeAsk(yes) {
-    var cb = ASK_YES;
-    ASK_YES = null;
-    document.getElementById('ask').classList.remove('open');
-    if (yes && cb) cb();
-  }
-  document.getElementById('askYes').addEventListener('click', function () { closeAsk(true); });
-  document.getElementById('askNo').addEventListener('click', function () { closeAsk(false); });
-  document.getElementById('ask').addEventListener('click', function (e) { if (e.target === this) closeAsk(false); });
-  document.addEventListener('keydown', function (e) {
-    if (!document.getElementById('ask').classList.contains('open')) return;
-    if (e.key === 'Escape') closeAsk(false);
-    if (e.key === 'Enter') { e.preventDefault(); closeAsk(true); }
-  });
-
   /* ---------- события ---------- */
 
   function run() {
     var s = settings();
     document.getElementById('status').textContent = t('counting');
-    sketchup.recalc(s.method, s.offset, s.depth, s.snap, s.gap, s.hidden, s.holes);
+    sketchup.recalc(s.method, s.offset, s.depth);
   }
 
   document.getElementById('btnRun').addEventListener('click', run);
   document.getElementById('btnHi').addEventListener('click', function () { sketchup.highlight(); });
-  document.getElementById('btnExport').addEventListener('click', function () {
-    var tot = DATA.totals || { floors: 0 };
-    // Как BA.confirmUndoable: вопрос, что появится, и про отмену — на языке сборки
-    ask([tf('confirm_export', { n: tot.floors }), t('confirm_export_where'), t('confirm_undo')],
-        function () { sketchup.export_contours(); });
-  });
   document.getElementById('btnCopy').addEventListener('click', window.acCopy);
   document.getElementById('onlyBad').addEventListener('change', render);
 
-  document.getElementById('btnFold').addEventListener('click', function () {
+  // Раскрыта хоть одна ветка — свернуть всё; свёрнуто всё — развернуть всё
+  document.getElementById('foldAll').addEventListener('click', function () {
     var keys = allBranchKeys(DATA.tree || [], '', []);
     var anyOpen = keys.some(function (k) { return !CLOSED[k]; });
     keys.forEach(function (k) { CLOSED[k] = anyOpen; });
-    this.textContent = anyOpen ? t('btn_unfold') : t('btn_fold');
     render();
   });
 
@@ -421,11 +343,9 @@
   Array.prototype.forEach.call(document.querySelectorAll('input[name="depth"], input[name="method"]'), function (r) {
     r.addEventListener('change', function () { syncSectionFields(); savePrefs(); if ((DATA.tree || []).length) run(); });
   });
-  ['offset', 'gap', 'snap', 'hidden', 'holes'].forEach(function (id) {
-    document.getElementById(id).addEventListener('change', function () {
-      savePrefs();
-      if ((DATA.tree || []).length && radio('method') === 'section') run();
-    });
+  document.getElementById('offset').addEventListener('change', function () {
+    savePrefs();
+    if ((DATA.tree || []).length && radio('method') === 'section') run();
   });
   Array.prototype.forEach.call(document.querySelectorAll('input[name="copy"]'), function (r) {
     r.addEventListener('change', function () { savePrefs(); refreshCopyButton(); });
@@ -433,16 +353,11 @@
   document.getElementById('btnReset').addEventListener('click', function () {
     setRadio('depth', '1'); setRadio('method', 'top'); setRadio('copy', 'blocks');
     document.getElementById('offset').value = 1000;
-    document.getElementById('gap').value = 20;
-    document.getElementById('snap').value = 1;
-    document.getElementById('hidden').checked = true;
-    document.getElementById('holes').checked = false;
     syncSectionFields();
     savePrefs(); refreshCopyButton();
     if ((DATA.tree || []).length) run();
   });
 
-  BA.popover('btnHelp', 'help');
   window.addEventListener('DOMContentLoaded', function () { sketchup.ready(); });
 </script>
 </body>

@@ -24,7 +24,7 @@ module BACommunity
     STRINGS = {
       'ru' => {
         ext_description: 'Площади этажей, корпусов и комплексов по верхней грани или по сечению, ' \
-                         'таблица в буфер для Google Таблиц / Excel, грани сечений в модели.',
+                         'таблица в буфер для Google Таблиц / Excel.',
         decimal:         ',',
 
         # меню и панель инструментов
@@ -40,9 +40,6 @@ module BACommunity
         menu_copy:       'Копировать таблицу',
         tip_copy:        'Копировать таблицу в буфер',
         st_copy:         'Кладёт таблицу в буфер обмена — вставляется в Google Таблицы и Excel как есть',
-        menu_section:    'Сечение этажа…',
-        tip_section:     'Сечение этажа',
-        st_section:      'Выделенный этаж: одна плоская грань по внешнему контуру сечения и её площадь',
         menu_volume:     'Объём выделенного',
         tip_volume:      'Объём выделенного (в разработке)',
         st_volume:       'Суммарный объём выделенных солидов — инструмент в разработке',
@@ -62,8 +59,6 @@ module BACommunity
         nothing_selected: 'Ничего не выделено. Выделите корпус, комплекс или этажи.',
         hl_count_first:   'Сначала посчитайте — подсвечивать пока нечего.',
         hl_on:            'Подсветка включена. Esc во вьюпорте — выключить.',
-        exp_count_first:  'Сначала посчитайте сечением — выгружать пока нечего.',
-        exp_need_section: 'Контуры есть только у сечения: переключите способ и посчитайте заново.',
 
         # таблицы
         no_name:         'Без имени',
@@ -78,36 +73,8 @@ module BACommunity
         col_floors:      'Этажей в %s',
         col_blocks:      'Корпусов в %s',
 
-        # команда «Сечение этажа…»
-        cmd_title:       'Сечение этажа',
-        cmd_need_one:    'Сечение этажа: выделите ровно одну группу или компонент — этаж, и запустите снова.',
-        cmd_cut:         'Высота реза от низа этажа, мм',
-        cmd_snap:        'Допуск сварки точек, мм',
-        cmd_gap:         'Закрывать зазоры до, мм',
-        cmd_hidden:      'Скрытое и выключенные теги',
-        cmd_holes:       'Внутренние дворы',
-        opt_skip:        'пропускать',
-        opt_include:     'учитывать',
-        opt_keep:        'не вычитать',
-        opt_subtract:    'вычитать',
-        cmd_bad_values:  'Сечение этажа: высота и допуск сварки должны быть больше нуля, зазор — не меньше нуля.',
-        cmd_failed:      'Сечение не построено: %s.',
-        cmd_no_contour:  'контур не найден',
-        cmd_done:        'Сечение «%s»: %s м² на высоте %d мм. Кликните по грани — площадь покажет ' \
-                         'Entity Info. Отмена — Ctrl+Z.',
-
-        # сечения в модели
+        # тег сечений, выгруженных версиями до 1.1: их этажами не считаем
         tag:             'AC_Сечения',
-        root_name:       'area counter: сечения',
-        op_section:      'Сечение этажа',
-        floor_group:     '%s — сечение %d мм, %s м²',
-        exp_nothing:     'Нечего выгружать: посчитайте способом «Сечение».',
-        exp_done:        'Создано сечений: %d%s.',
-        exp_replaced:    ', прежних заменено: %d',
-        exp_undo:        ' Отмена — Ctrl+Z.',
-        exp_failed:      'Не удалось создать сечение: %s',
-        face_failed:     '«%s»: грань не построилась (вырожденный контур), оставлены рёбра.',
-        face_mismatch:   '«%s»: площадь грани %s м² расходится с расчётом %s м².',
 
         # оговорки движка сечения
         w_ring_broken:   'кольцо разорвано: ни одна высота не прошла проверку',
@@ -121,7 +88,7 @@ module BACommunity
 
       'en' => {
         ext_description: 'Floor, building and complex areas by top face or by section, a table for ' \
-                         'Google Sheets / Excel via the clipboard, section faces in the model.',
+                         'Google Sheets / Excel via the clipboard.',
         decimal:         '.',
 
         menu_count:      'Calculate area',
@@ -136,9 +103,6 @@ module BACommunity
         menu_copy:       'Copy table',
         tip_copy:        'Copy the table to the clipboard',
         st_copy:         'Puts the table on the clipboard — pastes into Google Sheets and Excel as is',
-        menu_section:    'Floor section…',
-        tip_section:     'Floor section',
-        st_section:      'Selected floor: one flat face along the outer section contour, and its area',
         menu_volume:     'Volume of selection',
         tip_volume:      'Volume of selection (in development)',
         st_volume:       'Total volume of the selected solids — tool in development',
@@ -156,8 +120,6 @@ module BACommunity
         nothing_selected: 'Nothing is selected. Select a building, a complex or the floors.',
         hl_count_first:   'Calculate first — nothing to highlight yet.',
         hl_on:            'Highlight is on. Press Esc in the viewport to turn it off.',
-        exp_count_first:  'Calculate by section first — nothing to output yet.',
-        exp_need_section: 'Only sections have contours: switch the method and calculate again.',
 
         no_name:         'Unnamed',
         levels:          %w[Floor Building Complex],
@@ -171,34 +133,7 @@ module BACommunity
         col_floors:      'Floors in %s',
         col_blocks:      'Buildings in %s',
 
-        cmd_title:       'Floor section',
-        cmd_need_one:    'Floor section: select exactly one group or component — the floor — and run again.',
-        cmd_cut:         'Cut height above floor bottom, mm',
-        cmd_snap:        'Point weld tolerance, mm',
-        cmd_gap:         'Close gaps up to, mm',
-        cmd_hidden:      'Hidden objects and tags turned off',
-        cmd_holes:       'Inner courtyards',
-        opt_skip:        'skip',
-        opt_include:     'include',
-        opt_keep:        'keep',
-        opt_subtract:    'subtract',
-        cmd_bad_values:  'Floor section: height and weld tolerance must be greater than zero, gap must not be negative.',
-        cmd_failed:      'Section not built: %s.',
-        cmd_no_contour:  'contour not found',
-        cmd_done:        'Section “%s”: %s m² at %d mm. Click the face — Entity Info shows the area. ' \
-                         'Undo — Ctrl+Z.',
-
         tag:             'AC_Sections',
-        root_name:       'area counter: sections',
-        op_section:      'Floor section',
-        floor_group:     '%s — section %d mm, %s m²',
-        exp_nothing:     'Nothing to output: calculate with the “Section” method.',
-        exp_done:        'Sections created: %d%s.',
-        exp_replaced:    ', previous ones replaced: %d',
-        exp_undo:        ' Undo — Ctrl+Z.',
-        exp_failed:      'Could not create the section: %s',
-        face_failed:     '“%s”: the face could not be built (degenerate contour), edges were left.',
-        face_mismatch:   '“%s”: face area %s m² differs from the calculated %s m².',
 
         w_ring_broken:   'ring is broken: no height passed the check',
         w_cut_other:     'cut height %d mm instead of %d',

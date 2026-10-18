@@ -21,6 +21,10 @@ module BACommunity
     # Окно плагина по дизайн-коду B&A: данные уходят в html после колбэка
     # ready через execute_script("init(json)"), настройки живут в реестре
     # компактной строкой без кавычек — JSON там ломается.
+    #
+    # Из параметров сечения в окне только отметка реза. Сварка, зазоры,
+    # скрытое и дворы — по умолчанию Section::Engine::DEFAULTS: окно должно
+    # быть понятно без инструкции.
     module Panel
 
       HTML_FILE     = File.join(File.dirname(__FILE__), 'html', 'panel.html').freeze
@@ -31,14 +35,10 @@ module BACommunity
       @report = nil
       @toast  = nil
       @spent  = nil
+      @run    = 0      # номер расчёта: окно сворачивает дерево на каждом новом
       @method = 'top'
       @depth  = 1
-      # Параметры сечения по ТЗ; по умолчанию — Section::Engine::DEFAULTS
       @offset = Section::Engine::DEFAULTS[:cut_mm]
-      @snap   = Section::Engine::DEFAULTS[:snap_mm]
-      @gap    = Section::Engine::DEFAULTS[:gap_mm]
-      @hidden = Section::Engine::DEFAULTS[:ignore_hidden]
-      @holes  = Section::Engine::DEFAULTS[:subtract_holes]
 
       # Метод называется show, а не open: open — приватный метод Kernel,
       # перекрывать его у модуля не стоит.
@@ -69,18 +69,13 @@ module BACommunity
 
       def self.attach_callbacks(dialog)
         dialog.add_action_callback('ready') { |_ctx| push }
-        dialog.add_action_callback('recalc') do |_ctx, method_key, offset_mm, depth, snap, gap, hidden, holes|
+        dialog.add_action_callback('recalc') do |_ctx, method_key, offset_mm, depth|
           @method = method_key.to_s
-          @offset = offset_mm.to_f
+          @offset = offset_mm.to_f if offset_mm.to_f > 0
           @depth  = depth.to_i
-          @snap   = snap.to_f if snap
-          @gap    = gap.to_f if gap
-          @hidden = hidden ? true : false unless hidden.nil?
-          @holes  = holes ? true : false unless holes.nil?
           recalc
         end
         dialog.add_action_callback('highlight') { |_ctx| do_highlight }
-        dialog.add_action_callback('export_contours') { |_ctx| do_export }
         dialog.add_action_callback('zoom') do |_ctx, id|
           entry = @report && @report[:entries][id.to_i]
           Highlight.zoom_to(entry.node) if entry
@@ -97,7 +92,9 @@ module BACommunity
         apply_prefs(Sketchup.read_default(PREFS_SECTION, 'prefs', nil).to_s)
       end
 
-      # Строка вида "depth:1,method:section,offset:1000,snap:1,gap:20,hidden:1,holes:0,copy:blocks"
+      # Строка вида "depth:1,method:section,offset:1000,copy:blocks". Ключи
+      # прежних версий (snap, gap, hidden, holes) пропускаются: этих настроек
+      # в окне больше нет, и старое значение не должно тихо менять расчёт.
       def self.apply_prefs(spec)
         spec.split(',').each do |pair|
           key, value = pair.split(':', 2)
@@ -105,33 +102,13 @@ module BACommunity
           when 'depth'  then @depth  = value.to_i
           when 'method' then @method = value.to_s
           when 'offset' then @offset = value.to_f if value.to_f > 0
-          when 'snap'   then @snap   = value.to_f if value.to_f > 0
-          when 'gap'    then @gap    = value.to_f if value.to_f >= 0
-          when 'hidden' then @hidden = value == '1'
-          when 'holes'  then @holes  = value == '1'
           end
         end
       end
 
       def self.section_opts
         load_prefs if @dialog.nil?
-        { cut_mm: @offset, snap_mm: @snap, gap_mm: @gap,
-          ignore_hidden: @hidden, subtract_holes: @holes }
-      end
-
-      # Команда «Сечение этажа» пишет в те же настройки, что и окно
-      def self.store_section_opts(o)
-        load_prefs
-        @offset = o[:cut_mm]
-        @snap   = o[:snap_mm]
-        @gap    = o[:gap_mm]
-        @hidden = o[:ignore_hidden]
-        @holes  = o[:subtract_holes]
-        copy = Sketchup.read_default(PREFS_SECTION, 'prefs', '').to_s[/copy:([a-z]+)/, 1] || 'blocks'
-        spec = format('depth:%d,method:%s,offset:%s,snap:%s,gap:%s,hidden:%d,holes:%d,copy:%s',
-                      @depth, @method, @offset, @snap, @gap, @hidden ? 1 : 0, @holes ? 1 : 0, copy)
-        Sketchup.write_default(PREFS_SECTION, 'prefs', spec)
-        push
+        Section::Engine::DEFAULTS.merge(cut_mm: @offset)
       end
 
       # --- расчёт ------------------------------------------------------------
@@ -139,6 +116,7 @@ module BACommunity
       def self.recalc
         started = Time.now
         @roots  = Calc.run(@method, @offset, @depth, section_opts)
+        @run   += 1
 
         if @roots.nil?
           @report = nil
@@ -164,18 +142,6 @@ module BACommunity
         push
       end
 
-      def self.do_export
-        if @roots.nil?
-          say(AreaCounter.t(:exp_count_first))
-        elsif @method != 'section'
-          say(AreaCounter.t(:exp_need_section))
-        else
-          _ok, message = Section::Builder.build(@roots)
-          say(message)
-        end
-        push
-      end
-
       # Сообщение в окне плагина вместо UI.messagebox: в SketchUp 2024 обычное
       # сообщение рисует жёлтый треугольник предупреждения, а многострочное —
       # огромное окно на пол-экрана ради пары строк.
@@ -184,22 +150,6 @@ module BACommunity
         show
         say(text)
         push if existed   # новое окно получит сообщение само, по ready
-      end
-
-      # Итог команды «Сечение этажа…»: этаж — в таблице окна, итог — тостом
-      def self.show_section_result(node, text)
-        existed = @dialog && @dialog.visible?
-        # Сначала окно: при создании оно подтягивает сохранённые настройки,
-        # и если выставить результат раньше, они затрут глубину и способ —
-        # в таблице один этаж, а переключатель показывает «Комплекс».
-        show
-        @method = 'section'
-        @depth  = 0
-        @roots  = [node]
-        @report = Report.build(@roots)
-        @spent  = nil
-        say(text)
-        push if existed
       end
 
       # Одноразовое сообщение: окно покажет его тостом
@@ -219,14 +169,11 @@ module BACommunity
         base = {
           'method'    => @method,
           'offset'    => @offset.to_i,
-          'snap'      => @snap,
-          'gap'       => @gap,
-          'hidden'    => @hidden,
-          'holes'     => @holes,
           'depth'     => @depth,
           'prefs'     => Sketchup.read_default(PREFS_SECTION, 'prefs', nil),
           'toast'     => @toast,
           'spent'     => @spent,
+          'run'       => @run,
           'tree'      => [],
           'maxHeight' => 0,
           'tables'    => {},

@@ -48,7 +48,7 @@ module BACommunity
             model.active_path = nil if model.respond_to?(:active_path=) && model.active_path
             model.abort_operation
           end
-          builder_tests(model, results)
+          legacy_tests(model, results)
         rescue StandardError => e
           results << "CRASH #{e.class}: #{e.message} @ #{e.backtrace.first(3).join(' | ')}"
         end
@@ -282,68 +282,30 @@ module BACommunity
         check(out, 'T9 комплекс сечением', node.area, 1000.0, 1.0e-6)
       end
 
-      # --- создание грани в модели (убирает за собой) ----------------------
+      # --- сечения, выгруженные раньше, этажами не считаются ---------------
+      #
+      # Вывод сечений в модель с 1.1 живёт в отдельном плагине, но в моделях
+      # остались сечения версий до 1.1 (атрибуты area_counter, тег AC_Сечения
+      # или AC_Sections). Они не должны попадать ни в этажи, ни в контур.
 
-      def self.builder_tests(model, out)
-        model.start_operation('area counter: самопроверка, геометрия', true)
-        cube_def = comp_box(model, 'куб ТЗ-8', 10.m, 10.m, 3.m)
-        g1 = box(model.entities, OFFSET, 0, 0, 10.m, 10.m, 3.m, 'Этаж-тест')
-        g8 = model.entities.add_instance(cube_def, Geom::Transformation.translation([OFFSET + 40.m, 0, 0]) *
-                                                    Geom::Transformation.scaling(-1, 1, 1))
-        model.commit_operation
-
-        pids = [g1, g8].map { |e| S::Builder.pid_of(e) }
-        foreign_before = section_groups(model).length
+      def self.legacy_tests(model, out)
+        model.start_operation('area counter: самопроверка, старые сечения', true)
         begin
-          nodes = [g1, g8].map { |e| Calc.build(e, Geom::Transformation.new, 0, 'section', 0, opts) }
-          ok, msg = S::Builder.build(nodes)
-          verdict(out, ok, "B1 грань создана: #{msg}")
-
-          groups = section_groups(model, pids)
-          faces = groups.flat_map { |grp| grp.entities.grep(Sketchup::Face) }
-          verdict(out, groups.length == 2 && faces.length == 2,
-                  "B2 по одной грани на этаж: групп #{groups.length}, граней #{faces.length}")
-          faces.each_with_index do |f, i|
-            check(out, "B3 грань #{i + 1}: площадь в Entity Info", f.area * S::Engine::M2_PER_IN2, 100.0, 1.0e-6)
-            verdict(out, f.normal.z > 0, "B4 грань #{i + 1} смотрит вверх (ТЗ-8 — зеркальный компонент)")
+          floor = box(model.entities, OFFSET, 0, 0, 10.m, 10.m, 3.m, 'Этаж-тест')
+          marked = box(floor.entities, OFFSET - 5.m, -5.m, 0, 20.m, 20.m, 3.m, 'сечение с атрибутами')
+          marked.set_attribute('area_counter', 'role', 'section')
+          S::Traversal::TAGS.each_with_index do |name, i|
+            tagged = box(floor.entities, OFFSET - 5.m - i.m, -5.m, 0, 22.m, 22.m, 3.m, "сечение на теге #{name}")
+            tagged.layer = model.layers[name] || model.layers.add(name)
           end
-          attrs = groups.first.attribute_dictionary('area_counter')
-          verdict(out, attrs && attrs['floor_pid'] && attrs['cut_mm'] && attrs['area_m2'] && attrs['date'],
-                  "B5 атрибуты: #{attrs ? attrs.keys.join(', ') : 'нет'}")
-          verdict(out, groups.first.layer.name == S::Traversal::TAG, "B6 тег: #{groups.first.layer.name}")
-
-          # Повторный запуск заменяет прежнее сечение, а не плодит новое
-          S::Builder.build(nodes)
-          again = section_groups(model, pids)
-          verdict(out, again.length == 2, "B7 повторный запуск заменил сечения: групп #{again.length}")
-
-          # Своё сечение не попадает в следующий расчёт
-          r = section(g1, opts)
-          check(out, 'B8 после выгрузки площадь та же', r[:area_m2], 100.0, 1.0e-6)
+          r = section(floor, opts)
+          check(out, 'R1 сечение этажа со старыми сечениями внутри', r[:area_m2], 100.0, 1.0e-6)
+          check(out, 'R2 верхняя грань того же этажа', top(floor), 100.0, 1.0e-6)
+          verdict(out, Calc.child_groups(floor).empty?,
+                  "R3 старые сечения не стали этажами: групп-этажей #{Calc.child_groups(floor).length}")
         ensure
-          # Убираем ТОЛЬКО свои сечения — тем же механизмом по floor_pid, которым
-          # плагин заменяет сечения при повторе. Чужие сечения в модели не трогаем.
-          model.start_operation('area counter: самопроверка, уборка', true)
-          S::Builder.remove_previous(model, pids)
-          [g1, g8].each { |e| e.erase! unless e.deleted? }
-          model.commit_operation
+          model.abort_operation
         end
-        after = section_groups(model).length
-        verdict(out, after == foreign_before,
-                "B9 чужие сечения в модели не тронуты: было #{foreign_before}, осталось #{after}")
-      end
-
-      def self.section_groups(model, pids = nil)
-        found = []
-        walk = lambda do |ents|
-          ents.grep(Sketchup::Group).each do |grp|
-            role = grp.get_attribute('area_counter', 'role')
-            next unless role
-            role == 'section' ? found << grp : walk.call(grp.entities)
-          end
-        end
-        walk.call(model.entities)
-        pids ? found.select { |grp| pids.include?(grp.get_attribute('area_counter', 'floor_pid')) } : found
       end
 
       # --- измерение и отчёт ------------------------------------------------

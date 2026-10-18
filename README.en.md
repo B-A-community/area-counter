@@ -34,13 +34,13 @@ Outputting sections into the model as faces was removed from area counter in
 
 ## Download and install
 
-Latest release — **1.0**: [release page](https://github.com/B-A-community/area-counter/releases/tag/v1.0)
-(it still has section output and the in-window guide). 1.1 is built from
-source — see “Build”.
+Release **1.1**: [release page](https://github.com/B-A-community/area-counter/releases/tag/v1.1).
+The previous [1.0](https://github.com/B-A-community/area-counter/releases/tag/v1.0) still has
+section output and the in-window guide.
 
 | Русский интерфейс | English UI |
 |---|---|
-| [area-counter-1.0-rus.zip](https://github.com/B-A-community/area-counter/releases/download/v1.0/area-counter-1.0-rus.zip) | [area-counter-1.0-eng.zip](https://github.com/B-A-community/area-counter/releases/download/v1.0/area-counter-1.0-eng.zip) |
+| [area-counter-1.1-rus.zip](https://github.com/B-A-community/area-counter/releases/download/v1.1/area-counter-1.1-rus.zip) | [area-counter-1.1-eng.zip](https://github.com/B-A-community/area-counter/releases/download/v1.1/area-counter-1.1-eng.zip) |
 
 Each archive contains the `.rbz` extension and a one-page PDF guide.
 

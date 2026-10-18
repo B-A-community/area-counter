@@ -34,13 +34,13 @@ SketchUp 2024, 2025 и 2026.
 
 ## Скачать и установить
 
-Последний релиз — **1.0**: [страница релиза](https://github.com/B-A-community/area-counter/releases/tag/v1.0)
-(в нём ещё есть вывод сечений и инструкция в окне). 1.1 собирается из
-исходников — см. «Сборка».
+Релиз **1.1**: [страница релиза](https://github.com/B-A-community/area-counter/releases/tag/v1.1).
+Прежний [1.0](https://github.com/B-A-community/area-counter/releases/tag/v1.0) — ещё с выводом
+сечений и инструкцией в окне.
 
 | Русский интерфейс | English UI |
 |---|---|
-| [area-counter-1.0-rus.zip](https://github.com/B-A-community/area-counter/releases/download/v1.0/area-counter-1.0-rus.zip) | [area-counter-1.0-eng.zip](https://github.com/B-A-community/area-counter/releases/download/v1.0/area-counter-1.0-eng.zip) |
+| [area-counter-1.1-rus.zip](https://github.com/B-A-community/area-counter/releases/download/v1.1/area-counter-1.1-rus.zip) | [area-counter-1.1-eng.zip](https://github.com/B-A-community/area-counter/releases/download/v1.1/area-counter-1.1-eng.zip) |
 
 В архиве — плагин `.rbz` и краткая инструкция в PDF.
 
@@ -179,7 +179,7 @@ alert, плоская SVG-иконка в фиксированной палит�
 ## Статус
 
 **1.1** — упрощённое окно, без вывода сечений и инструкции; две сборки, русская
-и английская. Последний релиз — 1.0. Что сделано и что
+и английская, релиз. Что сделано и что
 осталось — в [CHANGELOG.md](CHANGELOG.md). Панель инструментов появляется сама;
 вернуть её потом можно через **Вид → Панели инструментов → area counter**.
 

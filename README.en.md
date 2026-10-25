@@ -6,7 +6,7 @@ A SketchUp extension that automates area calculations right in the model — the
 first tool in automating the architectural workflow. Tested in SketchUp 2024,
 2025 and 2026.
 
-Version 1.1 · [Apache 2.0](LICENSE) license · © 2026 B&A community
+Version 1.1.1 · [Apache 2.0](LICENSE) license · © 2026 B&A community
 
 Creators: [maksarsanjeev](https://github.com/maksarsanjeev),
 [Royalb21](https://github.com/Royalb21) — see [AUTHORS](AUTHORS).
@@ -34,13 +34,13 @@ Outputting sections into the model as faces was removed from area counter in
 
 ## Download and install
 
-Release **1.1**: [release page](https://github.com/B-A-community/area-counter/releases/tag/v1.1).
+Release **1.1.1**: [release page](https://github.com/B-A-community/area-counter/releases/tag/v1.1.1).
 The previous [1.0](https://github.com/B-A-community/area-counter/releases/tag/v1.0) still has
 section output and the in-window guide.
 
 | Русский интерфейс | English UI |
 |---|---|
-| [area-counter-1.1-rus.zip](https://github.com/B-A-community/area-counter/releases/download/v1.1/area-counter-1.1-rus.zip) | [area-counter-1.1-eng.zip](https://github.com/B-A-community/area-counter/releases/download/v1.1/area-counter-1.1-eng.zip) |
+| [area-counter-1.1.1-rus.zip](https://github.com/B-A-community/area-counter/releases/download/v1.1.1/area-counter-1.1.1-rus.zip) | [area-counter-1.1.1-eng.zip](https://github.com/B-A-community/area-counter/releases/download/v1.1.1/area-counter-1.1.1-eng.zip) |
 
 Each archive contains the `.rbz` extension and a one-page PDF guide.
 

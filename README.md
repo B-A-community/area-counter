@@ -6,7 +6,7 @@
 первый инструмент в автоматизации архитектурного процесса. Проверен в
 SketchUp 2024, 2025 и 2026.
 
-Версия 1.1 · лицензия [Apache 2.0](LICENSE) · © 2026 B&A community
+Версия 1.1.1 · лицензия [Apache 2.0](LICENSE) · © 2026 B&A community
 
 Создатели: [maksarsanjeev](https://github.com/maksarsanjeev),
 [Royalb21](https://github.com/Royalb21) — см. [AUTHORS](AUTHORS).
@@ -34,13 +34,13 @@ SketchUp 2024, 2025 и 2026.
 
 ## Скачать и установить
 
-Релиз **1.1**: [страница релиза](https://github.com/B-A-community/area-counter/releases/tag/v1.1).
+Релиз **1.1.1**: [страница релиза](https://github.com/B-A-community/area-counter/releases/tag/v1.1.1).
 Прежний [1.0](https://github.com/B-A-community/area-counter/releases/tag/v1.0) — ещё с выводом
 сечений и инструкцией в окне.
 
 | Русский интерфейс | English UI |
 |---|---|
-| [area-counter-1.1-rus.zip](https://github.com/B-A-community/area-counter/releases/download/v1.1/area-counter-1.1-rus.zip) | [area-counter-1.1-eng.zip](https://github.com/B-A-community/area-counter/releases/download/v1.1/area-counter-1.1-eng.zip) |
+| [area-counter-1.1.1-rus.zip](https://github.com/B-A-community/area-counter/releases/download/v1.1.1/area-counter-1.1.1-rus.zip) | [area-counter-1.1.1-eng.zip](https://github.com/B-A-community/area-counter/releases/download/v1.1.1/area-counter-1.1.1-eng.zip) |
 
 В архиве — плагин `.rbz` и краткая инструкция в PDF.
 
